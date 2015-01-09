@@ -11,6 +11,7 @@
 /*vtl touch IC define*/
 #define CT36X			0x01//(CT36X:ct362,ct363,ct365)
 #define	CT360			0x02//(CT360:ct360)
+#define CT363M			0x03//(CT36X:ct362,ct363,ct365)
 
 /*xy data protocol*/
 #define OLD_PROTOCOL		0x01
@@ -20,7 +21,7 @@
 /***********************vtl ts driver config ******************************************/
 
 /*vtl chip ID*/
-#define	CHIP_ID			CT36X//CT360//
+#define	CHIP_ID			CT363M
 
 #define	XY_DATA_PROTOCOL	NEW_PROTOCOL//OLD_PROTOCOL//
 
@@ -93,6 +94,9 @@
 #define	TOUCH_POINT_NUM		5
 #elif(CHIP_ID == CT36X)
 #define	TOUCH_POINT_NUM		10
+#elif(CHIP_ID == CT363M)
+#define	TOUCH_POINT_NUM		10
+
 #endif
 
 /*priate define and declare*/

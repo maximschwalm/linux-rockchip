@@ -23,7 +23,7 @@ struct chip_cmd {
 static struct ts_info * ts_object = NULL;
 static struct chip_cmd (*chip) = NULL;
 
-
+static unsigned char	chipidflag;
 
 enum cmd_index {
 
@@ -64,6 +64,23 @@ static struct chip_cmd ct36x_cmd[] = {
 	{0x8e0e,RW_FLAG},	//fw checksum val
 
 	{0x8fff,0xaf},		//chip sleep cmd
+
+	{0xf000,RW_FLAG},	//chip id cmd
+
+	/************flash*************/
+	{0x30,RW_FLAG},		//FLASH_SECTOR_ERASE_CMD
+	{256,RW_FLAG},		//FLASH_SECTOR_NUM
+	{128,RW_FLAG},		//FLASH_SECTOR_SIZE
+	{0x33,RW_FLAG},		//FLASH_MASS_ERASE_CMD
+};
+
+static struct chip_cmd ct363M_cmd[] = {
+	{0x6B78,RW_FLAG}, 	//fw version
+
+	{0x6fff,0xe1},		//fw checksum cmd
+	{0x6e0e,RW_FLAG},	//fw checksum val
+
+	{0x6fff,0xaf},		//chip sleep cmd
 
 	{0xf000,RW_FLAG},	//chip id cmd
 
@@ -797,6 +814,8 @@ int chip_init(void)
 	unsigned char retry;
 	int ret = 0;
 
+	chipidflag = 0;
+
 	DEBUG();
 
 	ts_object = vtl_ts_get_object();
@@ -812,6 +831,7 @@ int chip_init(void)
 	{
 		ret = chip_get_chip_id(client,&chip_id);
 		printk("___chip ID = %d___cnt = %d\n",chip_id,retry);
+		chipidflag = chip_id;
 		switch(chip_id)
 		{
 			case 1:	{			//chip: CT362, CT363, CT365, CT368, CT369
@@ -824,7 +844,8 @@ int chip_init(void)
 				}break;
 
 			case 6:	{			//chip: CT362M, CT363M, CT365M, CT368M, CT369M
-					chip = ct36x_cmd;
+					chip = ct363M_cmd;
+					chip_trim_info_init(client);
 				}break;
 
 			default : {
