@@ -1,8 +1,7 @@
 /dts-v1/;
 
 #include "rk3288.dtsi"
-//#include "lcd-b101ew05.dtsi"
-#include "lcd-F402.dtsi"
+#include "lcd-LP097Qx1.dtsi"
 #include "vtl_ts_ct363m.dtsi"
 
 / {
@@ -585,8 +584,7 @@
 
 &lcdc1 {
 	status = "okay";
-	rockchip,mirror = <ROTATE_270>;
-
+	rockchip,mirror = <NO_MIRROR>;
 };
 
 &hdmi {
