@@ -429,7 +429,7 @@
 		reg = <0x5a>;
 		status = "okay";
 	};
-
+/*
 	CW2015@62 {
 		compatible = "cw201x";
 		reg = <0x62>;
@@ -443,6 +443,7 @@
 		is_dc_charge = <1>;
 		is_usb_charge = <0>;
 	};
+*/
 	
 	rtc@51 {
 		compatible = "rtc,hym8563";
