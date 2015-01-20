@@ -162,16 +162,16 @@ int hdmi_set_info(struct rk_screen *screen, unsigned int vic)
 	 */
 	switch (vic) {
 	case 16:		/* 1080p-60Hz */
-		screen->overscan.left = 97;
-		screen->overscan.top = 97;
-		screen->overscan.right = 97;
-		screen->overscan.bottom = 97;
+		screen->overscan.left = 100;
+		screen->overscan.top = 100;
+		screen->overscan.right = 100;
+		screen->overscan.bottom = 100;
 		break;
 	default:
-		screen->overscan.left = 96;
-		screen->overscan.top = 96;
-		screen->overscan.right = 96;
-		screen->overscan.bottom = 96;
+		screen->overscan.left = 100;
+		screen->overscan.top = 100;
+		screen->overscan.right = 100;
+		screen->overscan.bottom = 100;
 		break;
 	}
 
