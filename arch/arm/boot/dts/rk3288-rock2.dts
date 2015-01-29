@@ -161,9 +161,7 @@
 
 &pinctrl {
 	//used for init some gpio
-	init-gpios = <&gpio0 GPIO_A6 GPIO_ACTIVE_HIGH
-			/*&gpio0 GPIO_C2 GPIO_ACTIVE_HIGH */
-			/*&gpio7 GPIO_B7 GPIO_ACTIVE_LOW */>;
+	init-gpios = <&gpio0 GPIO_B5 GPIO_ACTIVE_LOW>;
 	
 	gpio0_gpio {
 			gpio0_c2: gpio0-c2 {
