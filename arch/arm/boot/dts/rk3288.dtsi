@@ -31,6 +31,8 @@
 		spi0 = &spi0;
 		spi1 = &spi1;
 		spi2 = &spi2;
+		dsihost0 = &dsihost0;
+		dsihost1 = &dsihost1;
 	};
 
 	cpus {
