@@ -725,8 +725,8 @@ static int rk_videobuf_prepare(struct videobuf_queue *vq, struct videobuf_buffer
     int ret;
     int bytes_per_line = soc_mbus_bytes_per_line(icd->user_width,
 						icd->current_fmt->host_fmt);
-	if ((bytes_per_line < 0) || (vb->boff == 0))
-		return -EINVAL;
+//	if ((bytes_per_line < 0) || (vb->boff == 0))
+//		return -EINVAL;
 
     buf = container_of(vb, struct rk_camera_buffer, vb);
 
@@ -770,24 +770,26 @@ out:
     return ret;
 }
 
+struct videobuf_dma_contig_memory {
+	u32 magic;
+	void *vaddr;
+	dma_addr_t dma_handle;
+	unsigned long size;
+};
+
+
 static inline void rk_videobuf_capture(struct videobuf_buffer *vb,struct rk_camera_dev *rk_pcdev)
 {
 	unsigned int y_addr,uv_addr;
 	struct rk_camera_dev *pcdev = rk_pcdev;
+	struct videobuf_dma_contig_memory *mem;
+
+	mem = vb->priv;
 
     if (vb) {
-		if (CAM_WORKQUEUE_IS_EN()) {
-			y_addr = pcdev->vipmem_phybase + vb->i*pcdev->vipmem_bsize;
-			uv_addr = y_addr + pcdev->zoominfo.vir_width*pcdev->zoominfo.vir_height;
-			if (y_addr > (pcdev->vipmem_phybase + pcdev->vipmem_size - pcdev->vipmem_bsize)) {
-				RKCAMERA_TR("vipmem for IPP is overflow! %dx%d -> %dx%d vb_index:%d\n",pcdev->host_width,pcdev->host_height,
-					          pcdev->icd->user_width,pcdev->icd->user_height, vb->i);
-				BUG();
-			}
-		} else {
-			y_addr = vb->boff;
+			y_addr = mem->dma_handle;
 			uv_addr = y_addr + vb->width * vb->height;
-		}
+        printk("y_addr %x uv_addr %x\n", y_addr, uv_addr);
 #if defined(CONFIG_ARCH_RK3188)
 		rk_camera_cif_reset(pcdev,false);
 #endif
@@ -861,6 +863,8 @@ static int rk_pixfmt2ippfmt(unsigned int pixfmt, int *ippfmt)
 	{
 		case V4L2_PIX_FMT_NV16:
 		case V4L2_PIX_FMT_NV61:
+//		case V4L2_PIX_FMT_YUYV:
+		case V4L2_PIX_FMT_YUV422P:
 		{
 			*ippfmt = IPP_Y_CBCR_H2V1;
 			break;
@@ -887,7 +891,9 @@ static int rk_pixfmt2rgafmt(unsigned int pixfmt, int *ippfmt)
 	{
 		case V4L2_PIX_FMT_YUV420:
 		case V4L2_PIX_FMT_UYVY: // yuv 422, but sensor has defined this format(in fact ,should be defined yuv 420), treat this as yuv 420.
-		case V4L2_PIX_FMT_YUYV: 
+//		case V4L2_PIX_FMT_YUYV: 
+		case V4L2_PIX_FMT_YUV422P:
+
 			{
 				*ippfmt = RK_FORMAT_YCbCr_420_SP;
 				break;
@@ -1289,11 +1295,56 @@ static int rk_camera_scale_crop_arm(struct work_struct *work)
 
 	return ret;    
 }
+
+void nv16_yuyv_convert(struct videobuf_buffer *vb, char *data_yuv_buf, char *data_yuv)
+{
+    int num,num_y,num_uv;
+    int height = vb->height;
+    int width = vb->width;
+    int y_count = height * width;
+    int uv_count = height * width;
+    int yuv_count = y_count + uv_count;
+    int data_uv = data_yuv + y_count;
+    printk("%s\n", __func__);
+    memcpy(data_yuv_buf, data_yuv, yuv_count);
+
+    for(num=0,num_y=0,num_uv=y_count; num<yuv_count; num+=4, num_y+=2, num_uv+=2) {
+        data_yuv[num] = data_yuv_buf[num_y];
+        data_yuv[num+1] = data_yuv_buf[num_uv]; 
+        data_yuv[num+2] = data_yuv_buf[num_y+1];
+        data_yuv[num+3] = data_yuv_buf[num_uv+1]; 
+    }
+}
+
+void nv16_yuv422p_convert(struct videobuf_buffer *vb, char *data_uv_buf, char *data_yuv)
+{
+    int num;
+    int height = vb->height;
+    int width = vb->width;
+    int y_count = height * width;
+    int uv_count = height * width;
+    char* data_uv;
+    data_uv = data_yuv + y_count;
+    printk("%s\n", __func__);
+
+    memcpy(data_uv_buf, data_uv, uv_count);
+
+    for(num=0; num<uv_count/2; num++) {
+        data_uv[num] = data_uv_buf[num*2];
+        data_uv[num+uv_count/2] = data_uv_buf[num*2+1]; 	
+    }
+}
+
 static void rk_camera_capture_process(struct work_struct *work)
 {
     struct rk_camera_work *camera_work = container_of(work, struct rk_camera_work, work);    
     struct videobuf_buffer *vb = camera_work->vb;    
     struct rk_camera_dev *pcdev = camera_work->pcdev;    
+    struct videobuf_dma_contig_memory *mem;
+    mem = vb->priv;
+    char *data_process_buf = pcdev->vipmem_virbase;
+    char *data_yuv = (char*)(mem->vaddr) ;
+
     //enum v4l2_mbus_pixelcode icd_code = pcdev->icd->current_fmt->code;    
     unsigned long flags = 0;    
     int err = 0;    
@@ -1316,6 +1367,15 @@ static void rk_camera_capture_process(struct work_struct *work)
     
     if (pcdev->icd_cb.sensor_cb)        
         (pcdev->icd_cb.sensor_cb)(vb);    
+
+    
+    if(pcdev->pixfmt == V4L2_PIX_FMT_YUV422P) {
+	nv16_yuv422p_convert(vb, data_process_buf, data_yuv);
+    }
+
+//    if(pcdev->pixfmt == V4L2_PIX_FMT_YUYV) {
+//        nv16_yuyv_convert(vb, data_process_buf, data_yuv);
+//    }
 
 rk_camera_capture_process_end:    
     if (err) {        
@@ -1957,6 +2017,18 @@ static const struct soc_mbus_pixelfmt rk_camera_formats[] = {
 		.bits_per_sample	= 8,
 		.packing		= SOC_MBUS_PACKING_2X8_PADHI,
 		.order			= SOC_MBUS_ORDER_LE,
+	}/*,{
+		.fourcc 		= V4L2_PIX_FMT_YUYV,
+		.name			= "YUYV",
+		.bits_per_sample	= 8,
+		.packing		= SOC_MBUS_PACKING_2X8_PADHI,
+		.order			= SOC_MBUS_ORDER_LE,
+	}*/,{
+		.fourcc 		= V4L2_PIX_FMT_YUV422P,
+		.name			= "422P",
+		.bits_per_sample	= 8,
+		.packing		= SOC_MBUS_PACKING_2X8_PADHI,
+		.order			= SOC_MBUS_ORDER_LE,
 	},{
 		.fourcc 		= V4L2_PIX_FMT_RGB565,
 		.name			= "RGB565",
@@ -1991,6 +2063,8 @@ static void rk_camera_setup_format(struct soc_camera_device *icd, __u32 host_pix
     switch (host_pixfmt)
     {
         case V4L2_PIX_FMT_NV16:
+	case V4L2_PIX_FMT_YVYU:
+	case V4L2_PIX_FMT_YUV422P:
             cif_fmt_val &= ~YUV_OUTPUT_422;
 		    cif_fmt_val &= ~UV_STORAGE_ORDER_UVUV;
 		    pcdev->frame_inval = RK_CAM_FRAME_INVAL_DC;
@@ -2134,8 +2208,7 @@ static int rk_camera_get_formats(struct soc_camera_device *icd, unsigned int idx
     			dev_dbg(dev, "Providing format %s using code %d\n",
     				rk_camera_formats[3].name,code);
     		}
-    		break;	
-#else 
+			
     		formats++;
     		if (xlate) {
     			xlate->host_fmt = &rk_camera_formats[4];
@@ -2144,6 +2217,7 @@ static int rk_camera_get_formats(struct soc_camera_device *icd, unsigned int idx
     			dev_dbg(dev, "Providing format %s using code %d\n",
     				rk_camera_formats[4].name,code);
     		}
+/*
     		formats++;
     		if (xlate) {
     			xlate->host_fmt = &rk_camera_formats[5];
@@ -2151,6 +2225,26 @@ static int rk_camera_get_formats(struct soc_camera_device *icd, unsigned int idx
     			xlate++;
     			dev_dbg(dev, "Providing format %s using code %d\n",
     				rk_camera_formats[5].name,code);
+    		}
+*/
+    		break;
+
+#else 
+    		formats++;
+    		if (xlate) {
+    			xlate->host_fmt = &rk_camera_formats[5];
+    			xlate->code = code;
+    			xlate++;
+    			dev_dbg(dev, "Providing format %s using code %d\n",
+    				rk_camera_formats[5].name,code);
+    		}
+    		formats++;
+    		if (xlate) {
+    			xlate->host_fmt = &rk_camera_formats[6];
+    			xlate->code = code;
+    			xlate++;
+    			dev_dbg(dev, "Providing format %s using code %d\n",
+    				rk_camera_formats[6].name,code);
     		}
 			break;		
 #endif			
@@ -2498,7 +2592,8 @@ static int rk_camera_try_fmt(struct soc_camera_device *icd,
    /* limit to rk29 hardware capabilities */
     v4l_bound_align_image(&pix->width, RK_CAM_W_MIN, RK_CAM_W_MAX, 1,
     	      &pix->height, RK_CAM_H_MIN, RK_CAM_H_MAX, 0,
-    	      pixfmt == V4L2_PIX_FMT_NV16 ? 4 : 0);
+/*    	      ((pixfmt == V4L2_PIX_FMT_NV16)||(pixfmt == V4L2_PIX_FMT_YUYV)||(pixfmt == V4L2_PIX_FMT_YUV422P)) ? 4 : 0);*/
+                      ((pixfmt == V4L2_PIX_FMT_NV16)||(pixfmt == V4L2_PIX_FMT_YUV422P)) ? 4 : 0);
 
     pix->bytesperline = soc_mbus_bytes_per_line(pix->width,
 						    xlate->host_fmt);

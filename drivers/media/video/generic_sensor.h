@@ -1250,6 +1250,25 @@ static inline int sensor_v4l2ctrl_flip_default_cb(struct soc_camera_device *icd,
     sensor_init_parameters_user(spsensor,icd);  \
 }
 
+static int generic_sensor_g_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *parms)\
+{\
+\
+	if (parms->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)\
+		return -EINVAL;\
+\
+        parms->parm.capture.readbuffers = 4;\
+\
+	return 0;\
+\
+}
+
+static int generic_sensor_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *parms)\
+{\
+       int ret;\
+\
+       printk("%s\n", __func__);\
+       return ret;\
+}
 
 #define sensor_v4l2_struct_initialization()  static struct v4l2_subdev_core_ops sensor_subdev_core_ops = {\
 	.init		= generic_sensor_init,\
@@ -1270,6 +1289,8 @@ static struct v4l2_subdev_video_ops sensor_subdev_video_ops = {\
 	.enum_frameintervals = generic_sensor_enum_frameintervals,\
 	.s_stream   = generic_sensor_s_stream,\
 	.enum_framesizes = generic_sensor_enum_framesizes,\
+	.g_parm         = generic_sensor_g_parm,\
+	.s_parm         = generic_sensor_s_parm,\
 };\
 static struct v4l2_subdev_ops sensor_subdev_ops = {\
 	.core	= &sensor_subdev_core_ops,\
