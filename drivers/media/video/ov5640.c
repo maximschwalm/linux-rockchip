@@ -993,6 +993,56 @@ static struct rk_sensor_datafmt sensor_colour_fmts[] = {
 * Please codeing your program here 
 **********************************************************
 */
+
+int sensor_parameter_print(struct i2c_client *client)
+{
+	u8 ret;
+	int i, j;
+	int array_num[] = { 
+		              0x3000, 0x3052, //system and IO pad control
+			      0x3100, 0x3108, //SCCB control
+			      0x3200, 0x3211, //SRB control
+			      0x3400, 0x3406, //AWB gain control
+			      0x3500, 0x350d, //AEC/AGC control
+			      0x3600, 0x3606, //VCM control
+			      0x3800, 0x3821, //timing control
+			      0x3a00, 0x3a25, //AEC/AGC power down domain control
+			      0x3b00, 0x3b0c, //strobe control
+			      0x3c00, 0x3c1e, //50/60Hz detector control
+			      0x3d00, 0x3d21, //OTP control
+			      0x3f00, 0x3f0d, //MC control
+			      0x4000, 0x4033, //BLC control
+			      0x4201, 0x4202, //frame control
+			      0x4300, 0x430d, //format control
+			      0x4400, 0x4431, //JPEG control
+			      0x4600, 0x460d, //VFIFO control
+			      0x4709, 0x4745, //DVP control
+			      0x4800, 0x4837, //MIPI control
+			      0x4901, 0x4902, //ISP frame control
+			      0x5000, 0x5063, //ISP top control
+			      0x5180, 0x51d0, //AWB control
+			      0x5300, 0x530f, //CIP control
+			      0x5380, 0x538b, //CMX control
+			      0x5480, 0x5490, //gamma control
+			      0x5580, 0x558c, //SDE control
+			      0x5600, 0x5606, //scale control
+			      0x5680, 0x56a2, //AVG control
+			      0x5800, 0x5849, //LENC control
+			      0x6000, 0x603f, //AFC control
+			     };
+	
+	for(j = 0; j < sizeof(array_num)/sizeof(int); j += 2) {
+		printk("\n----------start %d------------\n", j/2);
+		for(i = array_num[j]; i <= array_num[j+1]; i++) {
+			sensor_read(client, i, &ret);
+			printk("0x%4x 0x%2x\n", i, ret);
+		}
+		printk("\n------------end %d-----------\n", j/2);
+	}
+}
+
+EXPORT_SYMBOL(sensor_parameter_print);
+
 	static int sensor_parameter_record(struct i2c_client *client)
 	{
 		u8 ret_l,ret_m,ret_h;

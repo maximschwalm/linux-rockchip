@@ -69,7 +69,7 @@
  * Common stuff for both V4L1 and V4L2
  * Moved from videodev.h
  */
-#define VIDEO_MAX_FRAME               32
+#define VIDEO_MAX_FRAME                4
 #define VIDEO_MAX_PLANES               8
 
 /*
@@ -1217,6 +1217,7 @@ struct v4l2_ext_control {
 		__s64 value64;
 		char *string;
 	};
+    __s32 rect[4];/*rockchip add for focus zone*/
 } __attribute__ ((packed));
 
 struct v4l2_ext_controls {

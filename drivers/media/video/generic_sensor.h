@@ -517,6 +517,14 @@ static inline int sensor_v4l2ctrl_flash_cb(struct soc_camera_device *icd, struct
     //struct i2c_client *client = to_i2c_client(to_soc_camera_control(icd));
     int value = ext_ctrl->value;
 
+
+	if(value == 0xfefe5a5a){
+		if ((ctrl_info->cur_value == 2) || (ctrl_info->cur_value == 1)) {
+			generic_sensor_ioctrl(icd, Sensor_Flash, Flash_On);
+		}
+
+		return 0;
+	}
     if ((value < ctrl_info->qctrl->minimum) || (value > ctrl_info->qctrl->maximum)) {
         printk(KERN_ERR "%s(%d): value(0x%x) isn't between in (0x%x,0x%x)\n",__FUNCTION__,__LINE__,value,
             ctrl_info->qctrl->minimum,ctrl_info->qctrl->maximum);
@@ -1213,6 +1221,25 @@ static inline int sensor_v4l2ctrl_flip_default_cb(struct soc_camera_device *icd,
     sensor_init_parameters_user(spsensor,icd);  \
 }
 
+static int generic_sensor_g_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *parms)\
+{\
+\
+	if (parms->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)\
+		return -EINVAL;\
+\
+        parms->parm.capture.readbuffers = 4;\
+\
+	return 0;\
+\
+}
+
+static int generic_sensor_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *parms)\
+{\
+       int ret;\
+\
+       printk("%s\n", __func__);\
+       return ret;\
+}
 
 #define sensor_v4l2_struct_initialization()  static struct v4l2_subdev_core_ops sensor_subdev_core_ops = {\
 	.init		= generic_sensor_init,\
@@ -1234,6 +1261,8 @@ static struct v4l2_subdev_video_ops sensor_subdev_video_ops = {\
 	.enum_frameintervals = generic_sensor_enum_frameintervals,\
 	.s_stream   = generic_sensor_s_stream,\
 	.enum_framesizes = generic_sensor_enum_framesizes,\
+	.g_parm         = generic_sensor_g_parm,\
+	.s_parm         = generic_sensor_s_parm,\
 };\
 static struct v4l2_subdev_ops sensor_subdev_ops = {\
 	.core	= &sensor_subdev_core_ops,\

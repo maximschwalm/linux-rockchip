@@ -2,7 +2,7 @@
 
 #include "rk3288.dtsi"
 #include "lcd-box.dtsi"
-
+#include "rk3288-cif-sensor.dtsi"
 / {
 	fiq-debugger {
 		status = "okay";
@@ -786,4 +786,8 @@
 &sdmmc0_vdd_domain{
 	regulator-name = "vcc_sd";			
 	};
-	
+
+&rk3288_cif_sensor{
+	status = "okay";
+};
+
