@@ -185,6 +185,22 @@ struct goodix_platform_data goodix_info = {
 #endif
 
 static struct spi_board_info board_spi_devices[] = {
+#ifdef CONFIG_SPIM0_RK29
+	[0] = {
+		.modalias = "spidev",
+		.bus_num = 0,
+		.chip_select = 0,
+		.max_speed_hz = 500 * 1000,
+	},
+#endif
+#ifdef CONFIG_SPIM1_RK29
+	[1] = {
+		.modalias = "spidev",
+		.bus_num = 1,
+		.chip_select = 0,
+		.max_speed_hz = 500 * 1000,
+	},
+#endif
 };
 
 /***********************************************************
