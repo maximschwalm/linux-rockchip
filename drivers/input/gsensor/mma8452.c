@@ -50,7 +50,7 @@
 
 static int  mma8452_probe(struct i2c_client *client, const struct i2c_device_id *id);
 
-#define MMA8452_SPEED		200 * 1000
+#define MMA8452_SPEED		100 * 1000
 #define MMA8451_DEVID		0x1a
 #define MMA8452_DEVID		0x2a
 #define MMA8453_DEVID		0x3a
@@ -246,9 +246,36 @@ static int mma8452_start_dev(struct i2c_client *client, char rate)
 
 	mmaprintkf("-------------------------mma8452 start ------------------------\n");	
 	/* standby */
-	mma845x_active(client,0);
-	mmaprintkd("mma8452 MMA8452_REG_SYSMOD:%x\n",mma845x_read_reg(client,MMA8452_REG_SYSMOD));
+//	mma845x_active(client,0);
+//	mmaprintkd("mma8452 MMA8452_REG_SYSMOD:%x\n",mma845x_read_reg(client,MMA8452_REG_SYSMOD));
 
+	/* Set the device in 100 Hz ODR, Standby*/
+	ret = mma845x_write_reg(client,MMA8452_REG_CTRL_REG1,0x18);
+	mmaprintkd("mma8452 MMA8452_REG_CTRL_REG1:%x\n",mma845x_read_reg(client,MMA8452_REG_CTRL_REG1));
+	
+	/* Set Configuration Register for Motion Detection by setting the OR condition OAE = 1, enabling X, Y, and the latch*/
+	ret = mma845x_write_reg(client,MMA8452_REG_FF_MT_CFG, 0xd8);
+	mmaprintkd("mma8452 MMA8452_REG_FF_MT_CFG:%x\n",mma845x_read_reg(client,MMA8452_REG_FF_MT_CFG));
+
+	/*Threshold Setting Value for the Motion detection of > 3g*/
+	ret = mma845x_write_reg(client,MMA8452_REG_FF_MT_THS, 0x10);
+	mmaprintkd("mma8452 MMA8452_REG_FF_MT_THS:%x\n",mma845x_read_reg(client,MMA8452_REG_FF_MT_THS));
+
+	/*Set the debounce counter to eliminate false readings for 100 Hz sample rate with a requirement of 100 ms timer.*/
+	ret = mma845x_write_reg(client,MMA8452_REG_FF_MT_COUNT, 0x0a);
+	mmaprintkd("mma8452 MMA8452_REG_FF_MT_COUNT:%x\n",mma845x_read_reg(client,MMA8452_REG_FF_MT_COUNT));
+	
+	ret = mma845x_write_reg(client,MMA8452_REG_CTRL_REG3,5);
+	mmaprintkd("mma8452 MMA8452_REG_CTRL_REG3:%x\n",mma845x_read_reg(client,MMA8452_REG_CTRL_REG3));
+	
+	/*Enable Motion/Freefall Interrupt Function in the System*/
+	ret = mma845x_write_reg(client,MMA8452_REG_CTRL_REG4,0x04);
+	mmaprintkd("mma8452 MMA8452_REG_CTRL_REG4:%x\n",mma845x_read_reg(client,MMA8452_REG_CTRL_REG4));
+
+	/*Route the Motion/Freefall Interrupt Function to INT1 hardware pin*/
+	ret = mma845x_write_reg(client,MMA8452_REG_CTRL_REG5,0x04);
+	mmaprintkd("mma8452 MMA8452_REG_CTRL_REG5:%x\n",mma845x_read_reg(client,MMA8452_REG_CTRL_REG5));
+#if 0	
 	/* disable FIFO  FMODE = 0*/
 	ret = mma845x_write_reg(client,MMA8452_REG_F_SETUP,0);
 	mmaprintkd("mma8452 MMA8452_REG_F_SETUP:%x\n",mma845x_read_reg(client,MMA8452_REG_F_SETUP));
@@ -271,8 +298,9 @@ static int mma8452_start_dev(struct i2c_client *client, char rate)
 	ret = mma845x_write_reg(client,MMA8452_REG_CTRL_REG4,1);
 	mmaprintkd("mma8452 MMA8452_REG_CTRL_REG4:%x\n",mma845x_read_reg(client,MMA8452_REG_CTRL_REG4));
 
-	ret = mma845x_write_reg(client,MMA8452_REG_CTRL_REG5,1);
-	mmaprintkd("mma8452 MMA8452_REG_CTRL_REG5:%x\n",mma845x_read_reg(client,MMA8452_REG_CTRL_REG5));	
+	ret = mma845x_write_reg(client,MMA8452_REG_CTRL_REG5,2);
+	mmaprintkd("mma8452 MMA8452_REG_CTRL_REG5:%x\n",mma845x_read_reg(client,MMA8452_REG_CTRL_REG5));
+#endif
 
 	mmaprintkd("mma8452 MMA8452_REG_SYSMOD:%x\n",mma845x_read_reg(client,MMA8452_REG_SYSMOD));
 	mma845x_active(client,1);
@@ -606,8 +634,11 @@ static void  mma8452_delaywork_func(struct work_struct *work)
 
 	if (mma8452_get_data(client) < 0) 
 		printk(KERN_ERR "MMA8452 mma_work_func: Get data failed\n");
-	mmaprintkd("%s :int src:0x%02x\n",__FUNCTION__,mma845x_read_reg(mma8452->client,MMA8452_REG_INTSRC));	
-	enable_irq(client->irq);		
+	mma845x_read_reg(mma8452->client,MMA8452_REG_FF_MT_SRC);
+	mma845x_read_reg(mma8452->client,MMA8452_REG_INTSRC);
+	mmaprintkd("%s :mt src:0x%02x\n",__FUNCTION__,mma845x_read_reg(mma8452->client,MMA8452_REG_FF_MT_SRC));
+	mmaprintkd("%s :int src:0x%02x\n",__FUNCTION__,mma845x_read_reg(mma8452->client,MMA8452_REG_INTSRC));
+	enable_irq(client->irq);
 }
 
 static irqreturn_t mma8452_interrupt(int irq, void *dev_id)
@@ -792,7 +823,7 @@ static int  mma8452_probe(struct i2c_client *client, const struct i2c_device_id 
 	}
 
 	printk(KERN_INFO "mma8452 probe ok\n");
-#if  0	
+#if  1
 //	mma8452_start_test(this_client);
 	mma8452_start(client, MMA8452_RATE_12P5);
 #endif

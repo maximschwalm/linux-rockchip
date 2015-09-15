@@ -412,7 +412,7 @@ struct platform_device rk29_device_mt6229 = {
 
 /*MMA8452 gsensor*/
 #if defined (CONFIG_GS_MMA8452)
-#define MMA8452_INT_PIN   RK30_PIN0_PB7
+#define MMA8452_INT_PIN   RK30_PIN0_PB2
 
 static int mma8452_init_platform_hw(void)
 {
@@ -1546,15 +1546,7 @@ static struct i2c_board_info __initdata i2c0_info[] = {
 	.platform_data = &gt811_info,
 },
 #endif
-#if defined (CONFIG_GS_MMA8452)
-	{
-		.type	        = "gs_mma8452",
-		.addr	        = 0x1d,
-		.flags	        = 0,
-		.irq	        = MMA8452_INT_PIN,
-		.platform_data = &mma8452_info,
-	},
-#endif
+
 #if defined (CONFIG_GS_LIS3DH)
 	{
 		.type	        = "gs_lis3dh",
@@ -1999,6 +1991,16 @@ static struct i2c_board_info __initdata i2c1_info[] = {
 		.addr           = 0x51,
 		.flags                  = 0,
 		.irq            = RK30_PIN0_PB5,
+	},
+#endif
+
+#if defined (CONFIG_GS_MMA8452)
+	{
+		.type	        = "gs_mma8452",
+		.addr	        = 0x1c,
+		.flags	        = 0,
+		.irq	        = MMA8452_INT_PIN,
+		.platform_data = &mma8452_info,
 	},
 #endif
 
