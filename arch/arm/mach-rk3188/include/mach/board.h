@@ -84,9 +84,32 @@ enum _codec_pll {
 
 #endif
 
+struct rk2818_gpio_expander_info {
+	unsigned int gpio_num;// RK2818_PIN_PI0
+	unsigned int pin_type;//GPIO_IN or GPIO_OUT
+	unsigned int pin_value;//GPIO_HIGH or GPIO_LOW
+};
 
 
+struct pca9555_platform_data {
+	/*  the first extern gpio number in all of gpio groups */
+	unsigned int gpio_base;
+	unsigned int gpio_pin_num;
+	/*  the first gpio irq  number in all of irq source */
 
+	unsigned int gpio_irq_start;
+	unsigned int irq_pin_num;        //number of intterupt
+	unsigned int pca9954_irq_pin;        //rk28 gpio
+	/* initial polarity inversion setting */
+	uint16_t invert;
+	struct rk2818_gpio_expander_info  *settinginfo;
+	int  settinginfolen;
+	void	*context;	/* param to setup/teardown */
+
+	int		(*setup)(struct i2c_client *client,unsigned gpio, unsigned ngpio,void *context);
+	int		(*teardown)(struct i2c_client *client,unsigned gpio, unsigned ngpio,void *context);
+	char	**names;
+};
 
 
 #endif
