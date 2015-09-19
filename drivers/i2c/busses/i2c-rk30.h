@@ -32,7 +32,7 @@
 #define i2c_dbg(dev, format, arg...)
 #endif
 
-#define I2C_CHECK_IDLE
+//#define I2C_CHECK_IDLE
 
 #define i2c_writel                 writel_relaxed
 #define i2c_readl                  readl_relaxed
@@ -92,7 +92,7 @@ struct rk30_i2c {
 	struct device		*dev;
 	struct resource		*ioarea;
 	struct i2c_adapter	adap;
-    
+
         unsigned long		scl_rate;
 	unsigned long		i2c_rate;
         unsigned int        addr;

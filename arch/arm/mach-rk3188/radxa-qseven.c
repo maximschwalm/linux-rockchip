@@ -2098,6 +2098,116 @@ void  rk30_pwm_resume_voltage_set(void)
 #endif
 }
 
+/*****************************************************************************************
+ * extern gpio devices
+ * author: xxx@rock-chips.com
+ *****************************************************************************************/
+#if defined (CONFIG_GPIO_PCA9555)
+struct rk2818_gpio_expander_info  extern_gpio_settinginfo[] = {
+	{
+		.gpio_num    		=PCA9555_P00,
+		.pin_type           = GPIO_IN,
+		//.pin_value			=GPIO_HIGH,
+	 },
+
+	{
+		.gpio_num    		=PCA9555_P01,
+		.pin_type           = GPIO_IN,
+		//.pin_value			=GPIO_HIGH,
+	 },
+	 
+	 {
+		.gpio_num    		=PCA9555_P02,
+		.pin_type           = GPIO_IN,
+		//.pin_value			=GPIO_HIGH,
+	 },
+	{
+		.gpio_num			=PCA9555_P03,
+		.pin_type			= GPIO_IN,
+		//.pin_value			=GPIO_HIGH,
+	 },
+	
+	{
+		.gpio_num			=PCA9555_P04,
+		.pin_type			= GPIO_IN,
+		//.pin_value			=GPIO_HIGH,
+	 },
+	 
+	 {
+		.gpio_num			=PCA9555_P05,
+		.pin_type			= GPIO_IN,
+		//.pin_value			=GPIO_HIGH,
+	 },
+	{
+		.gpio_num			=PCA9555_P06,
+		.pin_type			= GPIO_IN,
+		//.pin_value			=GPIO_HIGH,
+	 },
+	
+	{
+		.gpio_num			=PCA9555_P07,
+		.pin_type			= GPIO_IN,
+		//.pin_value			=GPIO_HIGH,
+	 },
+	 
+	 {
+		.gpio_num			=PCA9555_P10,
+		.pin_type			= GPIO_IN,
+		//.pin_value			=GPIO_HIGH,
+	 },
+	{
+		.gpio_num			=PCA9555_P11,
+		.pin_type			= GPIO_IN,
+		//.pin_value			=GPIO_HIGH,
+	 },
+	
+	{
+		.gpio_num			=PCA9555_P12,
+		.pin_type			= GPIO_IN,
+		//.pin_value			=GPIO_HIGH,
+	 },
+	 
+	 {
+		.gpio_num			=PCA9555_P13,
+		.pin_type			= GPIO_IN,
+		//.pin_value			=GPIO_HIGH,
+	 },
+	 
+	{
+		.gpio_num			=PCA9555_P14,
+		.pin_type			= GPIO_IN,
+		//.pin_value			=GPIO_HIGH,
+	 },
+	 
+	 {
+		.gpio_num			=PCA9555_P15,
+		.pin_type			= GPIO_IN,
+		//.pin_value			=GPIO_HIGH,
+	 },
+	{
+		.gpio_num			=PCA9555_P16,
+		.pin_type			= GPIO_IN,
+		//.pin_value			=GPIO_HIGH,
+	 },
+	
+	{
+		.gpio_num			=PCA9555_P17,
+		.pin_type			= GPIO_IN,
+		//.pin_value			=GPIO_HIGH,
+	 },
+
+};
+
+struct pca9555_platform_data rk2818_pca9555_data={
+	.gpio_base=PCA9555_GPIO_EXPANDER_BASE, //GPIO_EXPANDER_BASE,
+	.gpio_pin_num=CONFIG_GPIO_PCA9555_NUM, //CONFIG_EXPANDED_GPIO_NUM,
+//	.gpio_irq_start=NR_AIC_IRQS + 2*NUM_GROUP,
+	.irq_pin_num=CONFIG_EXPANDED_GPIO_IRQ_NUM,
+//	.pca9954_irq_pin=RK2818_PIN_PE2,
+	.settinginfo=extern_gpio_settinginfo,
+	.settinginfolen=ARRAY_SIZE(extern_gpio_settinginfo),
+};
+#endif
 
 #ifdef CONFIG_I2C2_RK30
 static struct i2c_board_info __initdata i2c2_info[] = {
@@ -2127,6 +2237,15 @@ static struct i2c_board_info __initdata i2c2_info[] = {
 		.platform_data 	= &rk_hdmi_pdata,
 	},
 #endif
+#if defined (CONFIG_GPIO_PCA9555)
+	{
+		.type    		= "extend_gpio_pca9555",
+		.addr           = 0x20, 
+		.flags			= 0,
+		.platform_data=&rk2818_pca9555_data.gpio_base,
+	},
+#endif
+
 /*
 #if defined(CONFIG_MFD_RK616)
 {

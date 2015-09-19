@@ -444,6 +444,12 @@ config GPIO_PCA9554
 	help
 	  Say yes here to access the PCA9554 GPIO EXPANDER
 
+config GPIO_PCA9555
+	bool "GPIO EXPANDER PCA9555"
+	depends on I2C
+	help
+	  Say yes here to access the PCA9555 GPIO EXPANDER
+
 config IOEXTEND_TCA6424
  	bool "ROCKCHIP TCA6424 CONTROL"
 	depends on I2C
