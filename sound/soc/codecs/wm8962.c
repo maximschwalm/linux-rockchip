@@ -126,8 +126,8 @@ static const u16 wm8962_reg[WM8962_MAX_REGISTER + 1] = {
 	[18] = 0x0000,     /* R18    - ALC2 */
 	[19] = 0x1C32,     /* R19    - ALC3 */
 	[20] = 0x327B,     /* R20    - Noise Gate */
-	[21] = 0x00F8,     /* R21    - Left ADC volume */
-	[22] = 0x00F8,     /* R22    - Right ADC volume */
+	[21] = 0x00D8,     /* R21    - Left ADC volume */
+	[22] = 0x00D8,     /* R22    - Right ADC volume */
 	[23] = 0x0160,     /* R23    - Additional control(1) */
 	[24] = 0x0000,     /* R24    - Additional control(2) */
 	[25] = 0x0000,     /* R25    - Pwr Mgmt (1) */
@@ -137,8 +137,8 @@ static const u16 wm8962_reg[WM8962_MAX_REGISTER + 1] = {
 
 	[30] = 0x005E,     /* R30    - Clocking 3 */
 	[31] = 0x0000,     /* R31    - Input mixer control (1) */
-	[32] = 0x017D,     /* R32    - Left input mixer volume */
-	[33] = 0x017D,     /* R33    - Right input mixer volume */
+	[32] = 0x0,           /* R32    - Left input mixer volume */
+	[33] = 0x0,           /* R33    - Right input mixer volume */
 	[34] = 0x0009,     /* R34    - Input mixer control (2) */
 	[35] = 0x0003,     /* R35    - Input bias control */
 	[37] = 0x0002,     /* R37    - Left input PGA control */
@@ -2966,7 +2966,6 @@ static int wm8962_hw_params(struct snd_pcm_substream *substream,
 
 	if (rate % 8000 == 0)
 		adctl3 |= WM8962_SAMPLE_RATE_INT_MODE;
-
 	for (i = 0; i < ARRAY_SIZE(sysclk_rates); i++) {
 		if (sysclk_rates[i] == wm8962->sysclk_rate / rate) {
 			clocking4 |= i << WM8962_SYSCLK_RATE_SHIFT;
