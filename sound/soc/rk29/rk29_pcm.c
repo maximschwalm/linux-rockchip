@@ -351,6 +351,7 @@ static int rockchip_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 {
 	struct rockchip_runtime_data *prtd = substream->runtime->private_data;
 	int ret = 0;
+	int result;
 	/**************add by qiuen for volume*****/
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37))
@@ -381,8 +382,11 @@ static int rockchip_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
 	        DBG(" START \n");
+			prtd->state &= ~ST_RUNNING;
+			rk29_dma_ctrl(prtd->params->channel, RK29_DMAOP_STOP);
 	    prtd->state |= ST_RUNNING;
-	    rk29_dma_ctrl(prtd->params->channel, RK29_DMAOP_START);
+	    result = rk29_dma_ctrl(prtd->params->channel, RK29_DMAOP_START);
+//	    printk("RK29_DMAOP_START return %d\n", result);
 		break;
 	case SNDRV_PCM_TRIGGER_RESUME:
 	    DBG(" RESUME \n");
