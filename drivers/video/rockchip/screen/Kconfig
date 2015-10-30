@@ -193,6 +193,8 @@ config LCD_RK3168_FAC
         bool "RK3168 for factoryTool"     
 config LCD_RADXA_LVDS_1024_600
 	bool "1024x600 LVDS display provided by radxa"
+config LCD_RADXA_LVDS_1280_1024
+	bool "1280x1024 LVDS display provided by radxa"
 
 config HDMI_FB_480P
 	bool "HDMI framebuffer size and timing is 480p"
