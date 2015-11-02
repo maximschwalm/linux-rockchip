@@ -257,8 +257,8 @@ static int mma8452_start_dev(struct i2c_client *client, char rate)
 	ret = mma845x_write_reg(client,MMA8452_REG_FF_MT_CFG, 0xd8);
 	mmaprintkd("mma8452 MMA8452_REG_FF_MT_CFG:%x\n",mma845x_read_reg(client,MMA8452_REG_FF_MT_CFG));
 
-	/*Threshold Setting Value for the Motion detection of > 3g*/
-	ret = mma845x_write_reg(client,MMA8452_REG_FF_MT_THS, 0x10);
+	/*Threshold Setting Value for the Motion detection of > 0g*/
+	ret = mma845x_write_reg(client,MMA8452_REG_FF_MT_THS, 0x00);
 	mmaprintkd("mma8452 MMA8452_REG_FF_MT_THS:%x\n",mma845x_read_reg(client,MMA8452_REG_FF_MT_THS));
 
 	/*Set the debounce counter to eliminate false readings for 100 Hz sample rate with a requirement of 100 ms timer.*/
