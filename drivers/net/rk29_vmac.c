@@ -55,9 +55,9 @@
 #include "rk29_vmac.h"
 #include "eth_mac/eth_mac.h"
 
-#ifdef CONFIG_RK_PHY_REG_SYS^M
-#include <linux/sysfs.h>^M
-#include <linux/uaccess.h>^M
+#ifdef CONFIG_RK_PHY_REG_SYS
+#include <linux/sysfs.h>
+#include <linux/uaccess.h>
 int vmac_create_sysfs(struct vmac_priv *ap);
 #endif
 
@@ -65,6 +65,22 @@ static unsigned char mac_addr[6] = {0x00};
 static char *mac_addr_param = ":";
 
 static struct wake_lock idlelock; /* add by lyx @ 20110302 */
+
+static struct class *vmac_class = NULL;
+static CLASS_ATTR(exist, 0664, NULL, NULL);
+
+int rk29_vmac_sysif_init(void)
+{
+	int ret;
+
+	vmac_class = class_create(THIS_MODULE, "vmac");
+	ret = class_create_file(vmac_class, &class_attr_exist);
+	if(ret) {
+	    printk("%s: Fail to creat class\n",__func__);
+	    return ret;
+	}
+	return 0;
+}
 
 /* Register access macros */
 #define vmac_writel(port, value, reg)	\
@@ -140,35 +156,6 @@ static int vmac_mdio_write(struct mii_bus *bus, int phy_id, int phy_reg,
 	return 0;
 }
 
-static int phy_rtl8201f_fixup(struct phy_device *phydev)
-{
-    int value;
-
-    /* use page 7 */
-    value = phy_read(phydev, 31);
-    value &= 0xff00;
-    value |= 0x0007;
-    value = phy_write(phydev, 31, value);
-
-    /* set customized led enable */
-    value = phy_read(phydev, 19);
-    //value &= ~(0x11<<4);//11
-    value |= 0x1<<3;
-    phy_write(phydev, 19, value);
-
-    /* set led0 link,led1 act */
-    value &= 0x0000;
-    value |= 0x83;
-    phy_write(phydev, 17, value);
-		
-     /* use page 7 */
-    value = phy_read(phydev, 31);
-    value &= 0x0000;
-    value = phy_write(phydev, 31, value);
-    
-    return 0;
-}
-
 static void vmac_handle_link_change(struct net_device *dev)
 {
 	struct vmac_priv *ap = netdev_priv(dev);
@@ -222,10 +209,6 @@ static int __devinit vmac_mii_probe(struct net_device *dev)
 	//unsigned long clock_rate;
 	int phy_addr, err;
 
-#if defined (CONFIG_PHY_PORT_NUM) && (CONFIG_PHY_PORT_NUM != 0)
-        if (ap->mii_bus->phy_map[CONFIG_PHY_PORT_NUM])
-            phydev = ap->mii_bus->phy_map[CONFIG_PHY_PORT_NUM];
-#else
 	/* find the first phy */
 	for (phy_addr = 0; phy_addr < PHY_MAX_ADDR; phy_addr++) {
 		if (ap->mii_bus->phy_map[phy_addr]) {
@@ -233,8 +216,7 @@ static int __devinit vmac_mii_probe(struct net_device *dev)
 			break;
 		}
 	}
-#endif 
-        
+
 	if (!phydev) {
 		dev_err(&dev->dev, "no PHY found\n");
 		return -ENODEV;
@@ -412,22 +394,15 @@ static int update_error_counters(struct net_device *dev, int status)
 	WARN_ON(status & TXCH_MASK);
 	WARN_ON(!(status & (MSER_MASK | RXCR_MASK | RXFR_MASK | RXFL_MASK)));
 
-	if (status & MSER_MASK) {
-		printk("MSER_MASK\n");
+	if (status & MSER_MASK)
 		ap->stats.rx_over_errors += 256; /* ran out of BD */
-	}
-	if (status & RXCR_MASK) {
-		printk("RXCR_MASK\n");
+	if (status & RXCR_MASK)
 		ap->stats.rx_crc_errors += 256;
-	}
-	if (status & RXFR_MASK) {
-		printk("RXCR_MASK\n");
+	if (status & RXFR_MASK)
 		ap->stats.rx_frame_errors += 256;
-	}
-	if (status & RXFL_MASK) {
-		printk("RXFL_MASK\n");
+	if (status & RXFL_MASK)
 		ap->stats.rx_fifo_errors += 256;
-	}
+
 	return 0;
 }
 
@@ -762,12 +737,12 @@ static void vmac_toggle_irqmask(struct net_device *dev, int enable, int mask)
 
 static void vmac_toggle_txint(struct net_device *dev, int enable)
 {
-	//struct vmac_priv *ap = netdev_priv(dev);
-	//unsigned long flags;
+	struct vmac_priv *ap = netdev_priv(dev);
+	unsigned long flags;
 
-	//spin_lock_irqsave(&ap->lock, flags);
+	spin_lock_irqsave(&ap->lock_ext, flags);
 	vmac_toggle_irqmask(dev, enable, TXINT_MASK);
-	//spin_unlock_irqrestore(&ap->lock, flags);
+	spin_unlock_irqrestore(&ap->lock_ext, flags);
 }
 
 static void vmac_toggle_rxint(struct net_device *dev, int enable)
@@ -836,14 +811,6 @@ static irqreturn_t vmac_intr(int irq, void *dev_instance)
 		dev_err(&ap->pdev->dev, "No source of IRQ found\n");
 #endif
 
-	if (fifo_free(&ap->rx_ring) == 1) {
-		if (unlikely(ap->mac_rxring_head == vmac_readl(ap, MAC_RXRING_HEAD))) {
-			//printk("empty  ap->mac_rxring_head: 0x%x\n", ap->mac_rxring_head);
-			//printk("empty  MAC_RXRING_HEAD: 0x%x\n", vmac_readl(ap, MAC_RXRING_HEAD));
-			vmac_toggle_rxint(dev, 0);
-			napi_schedule(&ap->napi);
-		}
-	}
 	if ((status & RXINT_MASK) &&
 			(ap->mac_rxring_head !=
 			 vmac_readl(ap, MAC_RXRING_HEAD))) {
@@ -1095,8 +1062,6 @@ int vmac_open(struct net_device *dev)
 	struct clk *mac_parent = NULL;
 	struct clk *arm_clk = NULL;
 	struct rk29_vmac_platform_data *pdata = ap->pdev->dev.platform_data;
-	unsigned char current_mac[6];
-	int ret = 0;
 
 	printk("enter func %s...\n", __func__);
 
@@ -1108,15 +1073,9 @@ int vmac_open(struct net_device *dev)
 	ap->shutdown = 0;
 		
 	//set rmii ref clock 50MHz
-#if defined (CONFIG_RK29_VMAC_EXT_CLK) 	
-	mac_clk = clk_get(NULL, "rmii_clkin");
-#else
-    mac_clk = clk_get(NULL, "mac_ref_div");
-#endif
-	if (IS_ERR(mac_clk)){
-		printk("!!!!!!!!!!get rmii clk err!!!!\n");
+	mac_clk = clk_get(NULL, "mac_ref_div");
+	if (IS_ERR(mac_clk))
 		mac_clk = NULL;
-	}
 	arm_clk = clk_get(NULL, "arm_pll");
 	if (IS_ERR(arm_clk))
 		arm_clk = NULL;
@@ -1136,68 +1095,15 @@ int vmac_open(struct net_device *dev)
 	clk_enable(clk_get(NULL,"mac_ref"));
 
 	//phy power on
-	if (pdata && pdata->rmii_power_control)
+	if (pdata && pdata->rmii_power_control) {
+        pdata->rmii_power_control(0);
+        msleep(100);
 		pdata->rmii_power_control(1);
+    }
 
-	msleep(100);
+	msleep(1000);
 
 	vmac_hw_init(dev);
-
-	if (is_valid_ether_addr(dev->dev_addr)){
-		strlcpy(current_mac,dev->dev_addr,6);
-	}
-
-#ifdef CONFIG_ETH_MAC_FROM_EEPROM
-	ret = eeprom_read_data(0,dev->dev_addr,6);
-	if (ret != 6){
-		printk("read mac from Eeprom fail.\n");
-	}else {
-		if (is_valid_ether_addr(dev->dev_addr)){
-			printk("eth_mac_from_eeprom***********:%X:%X:%X:%X:%X:%X\n",dev->dev_addr[0],
-						dev->dev_addr[1],dev->dev_addr[2],dev->dev_addr[3],
-						dev->dev_addr[4],dev->dev_addr[5] );
-		}
-	}
-#endif
-
-#ifdef CONFIG_ETH_MAC_FROM_IDB
-	err = eth_mac_idb(dev->dev_addr);
-	if (err) {
-		printk("read mac from IDB fail.\n");
-	} else {
-		if (is_valid_ether_addr(dev->dev_addr)) {
-			printk("eth_mac_from_idb***********:%X:%X:%X:%X:%X:%X\n",dev->dev_addr[0],
-						dev->dev_addr[1],dev->dev_addr[2],dev->dev_addr[3],
-						dev->dev_addr[4],dev->dev_addr[5] );
-		}
-	}
-#endif
-
-#ifdef CONFIG_ETH_MAC_FROM_WIFI_MAC
-	err = eth_mac_wifi(dev->dev_addr);
-	if (err) {
-		printk("read mac from Wifi  fail.\n");
-	} else {
-		if (is_valid_ether_addr(dev->dev_addr)) {
-			printk("eth_mac_from_wifi_mac***********:%X:%X:%X:%X:%X:%X\n",dev->dev_addr[0],
-						dev->dev_addr[1],dev->dev_addr[2],dev->dev_addr[3],
-						dev->dev_addr[4],dev->dev_addr[5] );
-		}
-	}
-#endif
-
-#ifdef CONFIG_ETH_MAC_FROM_SECURE_CHIP
-
-#endif
-         
-
-	if (!is_valid_ether_addr(dev->dev_addr)) {
-		strlcpy(dev->dev_addr,current_mac,6);
-		printk("eth_mac_from_RANDOM***********:%X:%X:%X:%X:%X:%X\n",dev->dev_addr[0],
-						dev->dev_addr[1],dev->dev_addr[2],dev->dev_addr[3],
-						dev->dev_addr[4],dev->dev_addr[5] );
-	}
-//add end	
 
 	/* mac address changed? */
 	write_mac_reg(dev, dev->dev_addr);
@@ -1248,7 +1154,7 @@ int vmac_open(struct net_device *dev)
 
 	/* schedule a link state check */
 	phy_start(ap->phy_dev);
-   phy_write(ap->phy_dev, 0x11, 0x2);
+
 	phydev = ap->phy_dev;
 	dev_info(&ap->pdev->dev, "PHY driver [%s] (mii_bus:phy_addr=%s, irq=%d)\n",
 	       phydev->drv->name, dev_name(&phydev->dev), phydev->irq);
@@ -1256,10 +1162,6 @@ int vmac_open(struct net_device *dev)
 	ap->suspending = 0;
 	ap->open_flag = 1;
 
-#ifdef CONFIG_RK_PHY_REG_SYS
-    dev_set_drvdata(&ap->phy_dev->dev, ap->phy_dev);
-    vmac_create_sysfs(ap);
-#endif	
 	return 0;
 
 err_free_irq:
@@ -1322,12 +1224,7 @@ int vmac_close(struct net_device *dev)
 		pdata->rmii_power_control(0);
 
 	//clock close
-#if defined (CONFIG_RK29_VMAC_EXT_CLK)
-    mac_clk = clk_get(NULL, "rmii_clkin");
-#else
-    mac_clk = clk_get(NULL, "mac_ref_div");
-#endif
-
+	mac_clk = clk_get(NULL, "mac_ref_div");
 	if (IS_ERR(mac_clk))
 		mac_clk = NULL;
 	if (mac_clk) {
@@ -1652,6 +1549,7 @@ static int __devinit vmac_probe(struct platform_device *pdev)
 	dev->features |= NETIF_F_HIGHDMA;
 
 	spin_lock_init(&ap->lock);
+    spin_lock_init(&ap->lock_ext);
 
 	SET_NETDEV_DEV(dev, &pdev->dev);
 	ap->dev = dev;
@@ -1680,10 +1578,60 @@ static int __devinit vmac_probe(struct platform_device *pdev)
 	/* mac address intialize, set vmac_open  */
 	read_mac_reg(dev, dev->dev_addr);
 
-	if (!is_valid_ether_addr(dev->dev_addr))
-		random_ether_addr(dev->dev_addr);
+	if (!is_valid_ether_addr(dev->dev_addr)) {
+	//add by cx@rock-chips.com
+	
+	#ifdef CONFIG_ETH_MAC_FROM_EEPROM
+		ret = eeprom_read_data(0,dev->dev_addr,6);
+		if (ret != 6){
+			printk("read mac from Eeprom fail.\n");
+		}else {
+			if (is_valid_ether_addr(dev->dev_addr)){
+				printk("eth_mac_from_eeprom***********:%X:%X:%X:%X:%X:%X\n",dev->dev_addr[0],
+							dev->dev_addr[1],dev->dev_addr[2],dev->dev_addr[3],
+							dev->dev_addr[4],dev->dev_addr[5] );
+			}
+		}
+	#endif
+	
+	#if 1//def CONFIG_ETH_MAC_FROM_IDB
+		err = eth_mac_idb(dev->dev_addr);
+		if (is_valid_ether_addr(dev->dev_addr)) {
+			printk("eth_mac_from_idb***********:%X:%X:%X:%X:%X:%X\n",dev->dev_addr[0],
+						dev->dev_addr[1],dev->dev_addr[2],dev->dev_addr[3],
+						dev->dev_addr[4],dev->dev_addr[5] );
+		} else {
+			random_ether_addr(dev->dev_addr);
+			printk("random_ether_addr***********:%X:%X:%X:%X:%X:%X\n",dev->dev_addr[0],
+                          dev->dev_addr[1],dev->dev_addr[2],dev->dev_addr[3],
+                          dev->dev_addr[4],dev->dev_addr[5] );
+		}
+	#endif
+
+	/*#ifdef CONFIG_ETH_MAC_FROM_WIFI_MAC*/
+		err = eth_mac_wifi(dev->dev_addr);
+		if (err) {
+			printk("read mac from Wifi  fail.\n");
+		} else {
+			if (is_valid_ether_addr(dev->dev_addr)) {
+				printk("eth_mac_from_wifi_mac***********:%X:%X:%X:%X:%X:%X\n",dev->dev_addr[0],
+							dev->dev_addr[1],dev->dev_addr[2],dev->dev_addr[3],
+							dev->dev_addr[4],dev->dev_addr[5] );
+			}
+		}
+	/*#endif*/
+
+	/*#ifdef CONFIG_ETH_MAC_FROM_RANDOM
+	    random_ether_addr(dev->dev_addr);
+        printk("random_ether_addr***********:%X:%X:%X:%X:%X:%X\n",dev->dev_addr[0],
+		                  dev->dev_addr[1],dev->dev_addr[2],dev->dev_addr[3],
+		                  dev->dev_addr[4],dev->dev_addr[5] );	
+	#endif*/
+	//add end	
+	}
 
 	/* if kernel parameter has mac address, set it */
+    /*
 	if (strlen(mac_addr_param) == 17) {
 		int i;
 		char *p = mac_addr_param;
@@ -1700,6 +1648,7 @@ static int __devinit vmac_probe(struct platform_device *pdev)
 					dev->dev_addr[4],dev->dev_addr[5] );
 		}
 	}
+    */
 
 	err = register_netdev(dev);
 	if (err) {
@@ -1710,13 +1659,6 @@ static int __devinit vmac_probe(struct platform_device *pdev)
 	dev_info(&pdev->dev, "ARC VMAC at 0x%08x irq %d %pM\n", mem_base,
 	    dev->irq, dev->dev_addr);
 	platform_set_drvdata(pdev, dev);
-
-    /* register the PHY board fixup (for Realtek RTL8201F) */
-    err = phy_register_fixup_for_uid(RTL_8201F_PHY_ID, 0xffffffff,
-            phy_rtl8201f_fixup);
-    /* we can live without it, so just issue a warning */
-    if (err)
-        dev_warn(&ap->pdev->dev, "Cannot register PHY board fixup.\n");
 
 	ap->suspending = 0;
 	ap->open_flag = 0;
@@ -1730,6 +1672,8 @@ static int __devinit vmac_probe(struct platform_device *pdev)
 	//power gpio init, phy power off default for power reduce
 	if (pdata && pdata->rmii_io_init)
 		pdata->rmii_io_init();
+
+	rk29_vmac_sysif_init();
 
 	return 0;
 
@@ -1788,11 +1732,7 @@ static void rk29_vmac_power_off(struct net_device *dev)
 		pdata->rmii_power_control(0);
 
 	//clock close
-#if defined (CONFIG_RK29_VMAC_EXT_CLK)  	
-    clk_disable(clk_get(NULL, "rmii_clkin"));
-#else
-    clk_disable(clk_get(NULL, "mac_ref_div"));
-#endif
+	clk_disable(clk_get(NULL, "mac_ref_div"));
 	clk_disable(clk_get(NULL,"mii_rx"));
 	clk_disable(clk_get(NULL,"mii_tx"));
 	clk_disable(clk_get(NULL,"hclk_mac"));
@@ -1835,8 +1775,8 @@ rk29_vmac_resume(struct device *dev)
 		if (ap->open_flag == 1) {
 			netif_device_attach(ndev);
 			netif_start_queue(ndev);
-			if (ap->suspending == 1) {
-				ap->suspending = 0;
+      if (ap->suspending == 1) {
+         ap->suspending = 0;
 			}
 		}
 	}
@@ -1859,9 +1799,29 @@ static struct platform_driver rk29_vmac_driver = {
 	},
 };
 
+#define WLAN_MAC_FILE "/sys/class/net/wlan0/address"
+struct delayed_work  mac_get_work;
+struct workqueue_struct *mac_get_wq;
+
+static void mac_get_fuc(struct work_struct *pwork) //(unsigned long _data)
+{
+    struct  file *file = NULL;
+    file = filp_open(WLAN_MAC_FILE, O_RDONLY,0);
+    if(IS_ERR(file)) {
+        printk("waiting for get mac.\n", WLAN_MAC_FILE);
+        queue_delayed_work(mac_get_wq, &mac_get_work, msecs_to_jiffies(2000));
+    } else {
+        platform_driver_register(&rk29_vmac_driver);
+    }
+}
+
 static int __init vmac_init(void)
 {
-	return platform_driver_register(&rk29_vmac_driver);
+    INIT_DELAYED_WORK(&mac_get_work, mac_get_fuc);
+    mac_get_wq = create_workqueue("mac_get_wkqueue");
+    if (mac_get_wq){
+        queue_delayed_work(mac_get_wq, &mac_get_work, msecs_to_jiffies(10000));
+    }
 }
 
 static void __exit vmac_exit(void)
@@ -1869,119 +1829,6 @@ static void __exit vmac_exit(void)
 	platform_driver_unregister(&rk29_vmac_driver);
 }
 
-#ifdef CONFIG_RK_PHY_REG_SYS
-static gPhyReg[PHY_MAX_ADDR]; 
-static struct mii_bus * static_phy_dev_bus = NULL; 
-static struct vmac_priv *  static_ap = NULL;
-static ssize_t show_phy_reg(struct device *dev,
-                struct device_attribute *attr, char *buf)
-{
-    int phy_addr = 0;
-
-    if(!static_phy_dev_bus || !static_ap)
-		return -1;
-	
-    for ( phy_addr = 0; phy_addr < PHY_MAX_ADDR; phy_addr++) { 
-        if((struct phy_device *)dev == &static_ap->mii_bus->phy_map[phy_addr]->dev)
-            break;
-    }
-
-    int ret = snprintf(buf, PAGE_SIZE, "current phy reg = 0x%x\n", gPhyReg[phy_addr]);
-    return ret;
-}
-
-static ssize_t set_phy_reg(struct device *dev,struct device_attribute *attr,
-        const char *buf, size_t count)
-{
-    int ovl;
-    int phy_addr = 0;
-
-    if(!static_phy_dev_bus || !static_ap)
-		return -1;
-	
-    for ( phy_addr = 0; phy_addr < PHY_MAX_ADDR; phy_addr++) { 
-        if((struct phy_device *)dev == &static_ap->mii_bus->phy_map[phy_addr]->dev)
-            break;
-    }
-
-    kstrtoint(buf, 0, &ovl);
-    gPhyReg[phy_addr] = ovl;
-    //printk("%s----ovl=0x%x\n", __FUNCTION__, ovl);
-    return count;
-}
-
-static ssize_t show_phy_regValue(struct device *dev,
-                struct device_attribute *attr, char *buf)
-{
-    int phy_addr = 0;
-
-    if(!static_phy_dev_bus || !static_ap)
-		return -1;
-	
-    for ( phy_addr = 0; phy_addr < PHY_MAX_ADDR; phy_addr++) { 
-        if((struct phy_device *)dev == &static_ap->mii_bus->phy_map[phy_addr]->dev)
-            break;
-    }
-
-    int val = mdiobus_read(static_phy_dev_bus, phy_addr, gPhyReg[phy_addr]);
-    int ret = snprintf(buf, PAGE_SIZE, "phy reg 0x%x = 0x%x\n", gPhyReg[phy_addr], val);
-    return ret;
-}
-
-static ssize_t set_phy_regValue(struct device *dev,
-                struct device_attribute *attr, char *buf, size_t count)
-{
-    int ovl;
-    int ret;
-    int phy_addr = 0;
-
-    if(!static_phy_dev_bus || !static_ap)
-		return -1;
-	
-    for ( phy_addr = 0; phy_addr < PHY_MAX_ADDR; phy_addr++) { 
-         if((struct phy_device *)dev == &static_ap->mii_bus->phy_map[phy_addr]->dev)
-		     break;
-    }
-    ret = kstrtoint(buf, 0, &ovl);
-    printk("%s----reg 0x%x: ovl=0x%x\n", __FUNCTION__, gPhyReg[phy_addr], ovl);
-    ret = mdiobus_write(static_phy_dev_bus, phy_addr, gPhyReg[phy_addr], ovl);
-    return count;
-}
-
-static struct device_attribute vmac_attrs[] = {
-        __ATTR(phy_reg, 00777 /*S_IRUGO | S_IWUSR | S_IWGRP*/, show_phy_reg, set_phy_reg),
-        __ATTR(phy_regValue, 00777 /*S_IRUGO | S_IWUSR | S_IWGRP*/, show_phy_regValue, set_phy_regValue),
-};
-
-int vmac_create_sysfs(struct vmac_priv *ap)
-{
-        int r;
-        int t;
-		int phy_addr;
-		
-		static_phy_dev_bus = ap->phy_dev->bus; 
-		static_ap = ap;
-
-		if(!static_phy_dev_bus || !static_ap)
-			return -1;
-		
-		for (phy_addr = 0; phy_addr < PHY_MAX_ADDR; phy_addr++) {
-		    if (ap->mii_bus->phy_map[phy_addr]) {
-                for (t = 0; t < ARRAY_SIZE(vmac_attrs); t++)
-                {
-                    r = device_create_file(&ap->mii_bus->phy_map[phy_addr]->dev, &vmac_attrs[t]);
-                    if (r)
-                    {
-                        dev_err(&ap->mii_bus->phy_map[phy_addr]->dev, "failed to create sysfs "
-                                        "file\n");
-                        return r;
-                    }
-            } 
-		}
-	}
-    return 0;
-}
-#endif
 module_init(vmac_init);
 module_exit(vmac_exit);
 

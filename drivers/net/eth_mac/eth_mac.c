@@ -28,9 +28,19 @@
 
 #define VERSION "0.1"
 
-#define WLAN_MAC_FILE "/data/misc/wifi/wlan_mac"
+//#define WLAN_MAC_FILE "/data/misc/wifi/wlan_mac"
+#define WLAN_MAC_FILE "/sys/class/net/wlan0/address"
 
-extern char GetSNSectorInfo(char * pbuf);
+//extern char GetSNSectorInfo(char * pbuf);
+
+static char GetSNSectorInfoBeforeNandInit(char * pbuf)
+{
+    char * sn_addr = ioremap(0x10501600,0x200);
+    memcpy(pbuf,sn_addr,0x200);
+    iounmap(sn_addr);
+	//print_hex_dump(KERN_WARNING, "sn:", DUMP_PREFIX_NONE, 16,1, sn_addr, 16, 0);
+    return 0;
+}
 
 int eth_mac_read_from_IDB(u8 *mac)
 {
@@ -40,7 +50,7 @@ int eth_mac_read_from_IDB(u8 *mac)
     if(mac == NULL)
         return -EFAULT;
 
-    GetSNSectorInfo(tempBuf);
+    GetSNSectorInfoBeforeNandInit(tempBuf);
     /*for (i = 0; i < 512; i++) {
         printk("%02x, ", tempBuf[i]);
 		if(((i+1)%16) == 0) printk("\n");
@@ -149,12 +159,11 @@ int eth_mac_wifi(u8 *eth_mac){
 	char wifi_mac[32];
 	mm_segment_t old_fs;
 	ssize_t ret;
-
-	int *maci=(int *)kmalloc(6, GFP_KERNEL);
+	int maci[6];
 
 	memset(eth_mac, 0, 6);
-	
-	file = filp_open(WLAN_MAC_FILE, O_RDWR,0);
+
+	file = filp_open(WLAN_MAC_FILE, O_RDONLY,0);
 	if (IS_ERR(file))
 	{
 		printk("open %s failed.", WLAN_MAC_FILE);
@@ -187,10 +196,9 @@ int eth_mac_wifi(u8 *eth_mac){
            	 return -ENOENT;
         }
 
-	kfree(maci);
 	filp_close(file,NULL);
 	return 0;
-	
+
 }
 
 
