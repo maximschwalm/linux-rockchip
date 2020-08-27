@@ -210,6 +210,8 @@ source "drivers/net/wireless/combo_mt66xx/Kconfig"
 source "drivers/net/wireless/mt5931_kk/Kconfig"
 endif # MTK_WIRELESS_SOLUTION
 
+source "drivers/net/wireless/rtl8723du/Kconfig"
+
 config RTL8723AU_LW
 	tristate "Realtek 8723AU USB WiFi Support"
 	depends on USB
