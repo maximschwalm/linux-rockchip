@@ -254,8 +254,13 @@ struct sensor_operate gsensor_mma8452_ops = {
 	.read_reg			= MMA8452_REG_X_OUT_MSB,		//read data
 	.read_len			= 6,					//data length
 	.id_reg				= MMA8452_REG_WHO_AM_I,			//read device id from this register
-	.id_data 			= MMA8452_DEVID,			//device id
+	#if defined(CONFIG_GS_MMA8653)
+	.id_data 			= MMA8653_DEVID,//MMA8452_DEVID,			//device id
+	.precision			= MMA8453_PRECISION,			//12 bit
+	#else 
+	.id_data 			= MMA8452_DEVID,//MMA8452_DEVID,			//device id
 	.precision			= MMA8452_PRECISION,			//12 bit
+	#endif 
 	.ctrl_reg 			= MMA8452_REG_CTRL_REG1,		//enable or disable 	
 	.int_status_reg 		= MMA8452_REG_INTSRC,			//intterupt status register
 	.range				= {-MMA845X_RANGE,MMA845X_RANGE},	//range
