@@ -116,6 +116,7 @@ int rk29_bl_val_scalor_line(struct rk29_bl_info *rk29_bl_info,int brightness)
 		brightness = brightness*(rk29_bl_info->max_brightness - rk29_bl_info->min_brightness);
 		brightness = (brightness/255) + rk29_bl_info->min_brightness;
 	#endif
+		brightness = (BL_STEP-rk29_bl_info->min_brightness)*brightness/BL_STEP+rk29_bl_info->min_brightness;
 	return brightness;
 }
 int rk29_bl_val_scalor_conic(struct rk29_bl_info *rk29_bl_info,int brightness)

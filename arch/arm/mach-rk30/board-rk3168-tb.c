@@ -165,13 +165,15 @@ static struct spi_board_info board_spi_devices[] = {
 #ifdef CONFIG_BACKLIGHT_RK29_BL
 #define PWM_ID            3
 #define PWM_MODE          PWM3
-#define PWM_EFFECT_VALUE  1
+#define PWM_EFFECT_VALUE  0
 
 #define LCD_DISP_ON_PIN
 
 #ifdef  LCD_DISP_ON_PIN
 #define BL_EN_PIN         RK30_PIN0_PA2
 #define BL_EN_VALUE       GPIO_HIGH
+
+#define LCD_VLED_EN       INVALID_GPIO//RK30_PIN0_PA3
 #endif
 static int rk29_backlight_io_init(void)
 {
@@ -179,11 +181,23 @@ static int rk29_backlight_io_init(void)
 
 	iomux_set(PWM_MODE);
 #ifdef  LCD_DISP_ON_PIN
-	ret = gpio_request(BL_EN_PIN, "bl_en");
-	if (ret == 0) {
-		gpio_direction_output(BL_EN_PIN, BL_EN_VALUE);
+	ret = gpio_request(BL_EN_PIN, NULL);
+	if (ret != 0) {
+		return -1;
 	}
+
+	gpio_direction_output(BL_EN_PIN, BL_EN_VALUE);
+
+    ret = gpio_request(LCD_VLED_EN, NULL);
+    if (ret != 0) 
+    {
+        gpio_free(LCD_VLED_EN);
+		return -1;
+    }
+    gpio_direction_output(LCD_VLED_EN, GPIO_HIGH);
+	
 #endif
+
 	return ret;
 }
 
@@ -222,7 +236,7 @@ static int rk29_backlight_pwm_resume(void)
 	gpio_free(pwm_gpio);
 	iomux_set(PWM_MODE);
 #ifdef  LCD_DISP_ON_PIN
-	msleep(30);
+	msleep(100);
 	gpio_direction_output(BL_EN_PIN, BL_EN_VALUE);
 #endif
 	return 0;
@@ -230,9 +244,11 @@ static int rk29_backlight_pwm_resume(void)
 
 static struct rk29_bl_info rk29_bl_info = {
 	.pwm_id = PWM_ID,
-	.min_brightness=20,
-	.max_brightness=255,
-	.brightness_mode =BRIGHTNESS_MODE_CONIC,
+	.min_brightness = 30,
+	.max_brightness=230,
+	.brightness_mode =BRIGHTNESS_MODE_LINE,
+	//.delay_ms=300,
+	.pre_div = 20 * 1000,
 	.bl_ref = PWM_EFFECT_VALUE,
 	.io_init = rk29_backlight_io_init,
 	.io_deinit = rk29_backlight_io_deinit,
