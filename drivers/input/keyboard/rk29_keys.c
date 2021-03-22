@@ -283,9 +283,21 @@ static void keys_adc_callback(struct adc_client *client, void *client_param, int
 			continue;
 		if(result < button->adc_value + DRIFT_ADVALUE &&
 			result > button->adc_value - DRIFT_ADVALUE)
+		{
+			if(button->adc_value==1)
+			{
+				if(abs(button->adc_value-result)>10)
+				{
+					continue;
+				}
+			}
 			button->adc_state = 1;
+			//printk("button->adc_value=%d result==%d\n",button->adc_value,result);
+		}
 		else
+		{
 			button->adc_state = 0;
+		}
 		if(bdata->state != button->adc_state)
 			mod_timer(&bdata->timer,
 				jiffies + msecs_to_jiffies(DEFAULT_DEBOUNCE_INTERVAL));
