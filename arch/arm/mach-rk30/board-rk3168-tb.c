@@ -2278,6 +2278,28 @@ static  struct pmu_info  rt5025_ldo_info[] = {
 #endif
 
 
+#ifdef  CONFIG_KP_AXP
+
+#define  AXP228_HOST_IRQ        RK30_PIN0_PB3
+#define  PMU_POWER_SLEEP        RK30_PIN0_PA4
+
+void __sramfunc board_pmu_axp228_suspend(void)
+{	
+	#ifdef CONFIG_CLK_SWITCH_TO_32K
+	 sram_gpio_set_value(pmic_sleep, GPIO_HIGH);  
+	#endif
+}
+void __sramfunc board_pmu_axp228_resume(void)
+{
+	#ifdef CONFIG_CLK_SWITCH_TO_32K
+ 	sram_gpio_set_value(pmic_sleep, GPIO_LOW);  
+	sram_32k_udelay(10000);
+	#endif
+}
+
+#include "../../../drivers/power/axp_power/axp22-board.c"
+#endif
+
 
 static struct i2c_board_info __initdata i2c1_info[] = {
 #if defined (CONFIG_MFD_WM831X_I2C)
@@ -2338,6 +2360,16 @@ static struct i2c_board_info __initdata i2c1_info[] = {
 	},
 #endif
 
+#if defined (CONFIG_KP_AXP)
+	{
+        .type           = "axp22_mfd",
+        .addr           = 0x34,
+        .flags          = 0,
+        .irq            = AXP228_HOST_IRQ,
+    	.platform_data = &axp_pdata,
+	},
+#endif
+
 #if defined (CONFIG_RTC_HYM8563)
 	{
 		.type                   = "rtc_hym8563",
@@ -2376,6 +2408,10 @@ void __sramfunc board_pmu_suspend(void)
 	if(pmic_is_rk808())
 	board_pmu_rk808_suspend();
 #endif
+    #if defined (CONFIG_KP_AXP)
+        if(pmic_is_axp228())
+        board_pmu_axp228_suspend();
+    #endif
 #if defined (CONFIG_MFD_RICOH619)
 	if(pmic_is_ricoh619())
 	board_pmu_ricoh619_suspend(); 
@@ -2400,7 +2436,11 @@ void __sramfunc board_pmu_resume(void)
 #if defined (CONFIG_MFD_RK808)
 	if(pmic_is_rk808())
 	board_pmu_rk808_resume();
-#endif
+       #endif
+    #if defined (CONFIG_KP_AXP)
+        if(pmic_is_axp228())
+        board_pmu_axp228_resume();
+    #endif
 #if defined (CONFIG_MFD_RICOH619)
 	if(pmic_is_ricoh619())
 	board_pmu_ricoh619_resume(); 
