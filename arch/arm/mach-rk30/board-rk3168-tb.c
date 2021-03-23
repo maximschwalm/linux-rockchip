@@ -99,6 +99,9 @@
 #include <linux/combo_mt66xx.h>
 #endif
 #include "board-rk3168-tb-camera.c"
+#if defined (CONFIG_RK_HEADSET_DET) || defined (CONFIG_RK_HEADSET_IRQ_HOOK_ADC_DET)
+#include "../../../drivers/headset_observe/rk_headset.h"
+#endif
 
 #if defined(CONFIG_TOUCHSCREEN_GT8XX)
 #define TOUCH_RESET_PIN  RK30_PIN0_PB6
@@ -1513,6 +1516,79 @@ static struct platform_device device_mt6622 = {
 };	
 #endif
 
+#if defined (CONFIG_RK_HEADSET_DET) || defined (CONFIG_RK_HEADSET_IRQ_HOOK_ADC_DET)
+#define RK_HEADSET_GPIO	RK30_PIN0_PB2
+#define RK_HOOK_GPIO	RK30_PIN1_PA6
+#define RK_SPK_CTRL_GPIO 	RK30_PIN2_PD7
+static int rk_headset_io_init(void)
+{
+	int ret;
+	ret = gpio_request(RK_HEADSET_GPIO, "headset_io");
+	if(ret) 
+		return ret;
+
+    //iomux_set(GPIO1_B5);
+	gpio_direction_input(RK_HEADSET_GPIO);
+	gpio_pull_updown(RK_HEADSET_GPIO, 1);
+	mdelay(50);
+
+	ret =gpio_request(RK_SPK_CTRL_GPIO,"spk_ctrl");
+	if(ret<0)
+	{
+		printk("request spk ctrl gpio fail\n");
+	}
+	else
+	{
+		gpio_direction_output(RK_SPK_CTRL_GPIO,GPIO_HIGH);
+	}
+
+	return 0;
+};
+
+static int rk_hook_io_init(void)
+{
+	int ret;
+	ret = gpio_request(RK_HOOK_GPIO, "hook_io");
+	if(ret) 
+		return ret;
+
+	//iomux_set(GPIO0_A5);
+	gpio_direction_input(RK_HOOK_GPIO);
+	mdelay(50);
+	return 0;
+};
+
+int rk_set_spk(bool enable)
+{
+	if(RK_SPK_CTRL_GPIO!=INVALID_GPIO)
+	{
+		gpio_direction_output(RK_SPK_CTRL_GPIO, enable?GPIO_HIGH:GPIO_LOW);
+	}
+}
+
+EXPORT_SYMBOL(rk_set_spk);
+
+struct rk_headset_pdata rk_headset_info = {
+		.Headset_gpio		= RK_HEADSET_GPIO,
+		.Hook_gpio  = RK_HOOK_GPIO,
+		.Hook_down_type = HOOK_DOWN_HIGH,
+		.headset_in_type = HEADSET_IN_LOW,
+		.hook_key_code = KEY_MEDIA,
+		//.headset_gpio_info = {GPIO1B4_SPI_CSN1_NAME, GPIO1B_GPIO1B4},
+		.headset_io_init = rk_headset_io_init,
+		//.hook_gpio_info = {GPIO0D1_UART2_CTSN_NAME, GPIO0D_GPIO0D1},
+		.hook_io_init = rk_hook_io_init,
+		.set_spk=rk_set_spk,
+};
+struct platform_device rk_device_headset = {
+		.name	= "rk_headsetdet",
+		.id 	= 0,
+		.dev    = {
+			    .platform_data = &rk_headset_info,
+		}
+};
+#endif
+
 static struct platform_device *devices[] __initdata = {
 #ifdef CONFIG_ION
 	&device_ion,
@@ -1548,6 +1624,9 @@ static struct platform_device *devices[] __initdata = {
 #endif
 #ifdef CONFIG_BATTERY_RK30_ADC
  	&rk30_device_adc_battery,
+#endif
+#if defined (CONFIG_RK_HEADSET_DET) ||  defined (CONFIG_RK_HEADSET_IRQ_HOOK_ADC_DET)
+	&rk_device_headset,
 #endif
 #ifdef CONFIG_RFKILL_RK
 	&device_rfkill_rk,

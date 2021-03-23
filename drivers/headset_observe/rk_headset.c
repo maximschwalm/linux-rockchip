@@ -68,6 +68,12 @@ extern void rk2928_codec_set_spk(bool on);
 extern int wm8994_set_status(void);
 #endif
 
+#if defined(CONFIG_SND_SOC_RT5616)
+extern int codec_ALC_Enable(int on);
+extern int codec_change_mic(int on);
+extern int codec_set_micbias(int on);
+#endif
+
 /* headset private data */
 struct headset_priv {
 	struct input_dev *input_dev;
@@ -190,6 +196,36 @@ static void headsetobserve_work(struct work_struct *work)
 	DBG("(headset in is %s)headset status is %s\n",
 		pdata->headset_in_type?"high level":"low level",
 		headset_info->headset_status?"in":"out");
+//spk ctrl
+if(pdata->set_spk)
+{
+	if(headset_info->headset_status == HEADSET_IN)
+	{
+		pdata->set_spk( 0);
+		DBG("headset or hp in set spk ctrl off##\n");
+	}
+	else if(headset_info->headset_status == HEADSET_OUT)
+	{
+		pdata->set_spk( 1);
+		DBG("headset or hp in set spk ctrl on$$\n");
+	}
+}
+
+//codec ALC ctrl
+#if defined(CONFIG_SND_SOC_RT5616)
+	if(headset_info->headset_status == HEADSET_IN)
+	{
+		codec_ALC_Enable( 0);
+		DBG("headset or hp in set codec ALC off##\n");
+	}
+	else if(headset_info->headset_status == HEADSET_OUT)
+	{
+		codec_ALC_Enable( 1);
+		codec_change_mic(0);
+		DBG("headset or hp in set codec ALC on$$\n");
+	}
+#endif
+
 		
 	if(headset_info->headset_status == HEADSET_IN)
 	{
@@ -320,9 +356,18 @@ static void headset_timer_callback(unsigned long arg)
 		goto out;
 	}
 	#endif
+#if defined(CONFIG_SND_SOC_RT5616)
+	codec_set_micbias(1);
+#endif
+
 	level = read_gpio(pdata->Hook_gpio);
+	
+	if(level>0) DBG("hook_gpio ++++++++++++\n");
+	if(level==0) DBG("hook_gpio ----------------\n");
+	
 	if(level < 0)
 		goto out;
+
 	if((level > 0 && pdata->Hook_down_type == HOOK_DOWN_LOW)
 		|| (level == 0 && pdata->Hook_down_type == HOOK_DOWN_HIGH))
 	{
@@ -339,7 +384,18 @@ static void headset_timer_callback(unsigned long arg)
 	}	
 	else	
 		headset->isMic= 0;//No microphone
-		
+
+	if(headset->isMic == 0){
+#if defined(CONFIG_SND_SOC_RT5616)
+		codec_change_mic(0);
+#endif
+	}
+	else if(headset->isMic == 1) 
+	{
+#if defined(CONFIG_SND_SOC_RT5616)
+		codec_change_mic(1);
+#endif
+	}
 	printk("headset->isMic = %d\n",headset->isMic);	
 	headset_info->cur_headset_status = headset_info->isMic ? 1:2;//BIT_HEADSET:BIT_HEADSET_NO_MIC;//
 	#if defined(CONFIG_SND_RK_SOC_RK2928) || defined(CONFIG_SND_RK29_SOC_RK610)
@@ -353,6 +409,10 @@ static void headset_timer_callback(unsigned long arg)
 	DBG("headset_info->cur_headset_status = %d\n",headset_info->cur_headset_status);	
 
 out:
+#if defined(CONFIG_SND_SOC_RT5616)
+	codec_set_micbias(0);
+#endif
+
 	return;
 }
 

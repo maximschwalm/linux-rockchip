@@ -25,6 +25,7 @@ struct rk_headset_pdata{
 	unsigned int headset_in_type;//	Headphones into the state level--Must be set
 	int (*headset_io_init)(int);
 	int (*hook_io_init)(int);
+	int (*set_spk)(bool);
 };
 
 #endif

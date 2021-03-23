@@ -24,15 +24,36 @@
 #include <sound/soc-dapm.h>
 #include <sound/initval.h>
 #include <sound/tlv.h>
+#include <mach/gpio.h>
 
 #include "rt5616.h"
 
 #define POWER_ON_MICBIAS1
+static struct snd_soc_codec *rt5616_codec;
+#define PLAYBACK_PATH_CONTROL
+
+#ifdef PLAYBACK_PATH_CONTROL
+#define SPK_CON_GPIO RK30_PIN2_PD7
+#endif
 
 struct rt5616_init_reg {
 	u8 reg;
 	u16 val;
 };
+
+enum {
+	NORMAL=0,
+	LOUT,
+	HP,
+	MODE_NUM,
+};
+
+#define EQ_REG_NUM 21 //bard 4-8
+typedef struct  hweq_s {
+ 	unsigned int reg[EQ_REG_NUM];
+	unsigned int value[EQ_REG_NUM];
+	unsigned int ctrl;
+} hweq_t;
 
 static struct rt5616_init_reg init_list[] = {
 	{RT5616_D_MISC		, 0x0011},
@@ -45,24 +66,40 @@ static struct rt5616_init_reg init_list[] = {
 	/*HP*/
 	//{RT5616_HPO_MIXER	, 0x2000}, //DAC -> HPO
 	{RT5616_HPO_MIXER	, 0x4000}, //HPVOL -> HPO
-	{RT5616_HP_VOL		, 0x8888}, //unmute HPVOL
+	{RT5616_HP_VOL		, 0x8C8C}, //unmute HPVOL
 	{RT5616_OUT_L3_MIXER	, 0x0278}, //DACL1 -> OUTMIXL
 	{RT5616_OUT_R3_MIXER	, 0x0278}, //DACR1 -> OUTMIXR
 	/*LOUT*/
-	{RT5616_LOUT_MIXER	, 0x3000},
-	/*Capture*/
+	//{RT5616_LOUT_MIXER	, 0x3000},
+	{RT5616_LOUT_MIXER	, 0xc000}, //0x3000 
+	{RT5616_LOUT_CTRL1	, 0x8888}, //SPK VOL
+
+/*Capture*/
 	//{RT5616_REC_L2_MIXER	, 0x006d}, //MIC1 -> RECMIXL
 	//{RT5616_REC_R2_MIXER	, 0x006d}, //MIC1 -> RECMIXR
-	{RT5616_REC_L2_MIXER	, 0x006b}, //MIC2 -> RECMIXL
-	{RT5616_REC_R2_MIXER	, 0x006b}, //MIC2 -> RECMIXR
-	{RT5616_ADC_DIG_VOL	, 0xafaf}, //mute adc for pop noise
-	/*MIC*/
+	{RT5616_REC_L2_MIXER	, 0x0069}, //MIC2 -> RECMIXL
+	{RT5616_REC_R2_MIXER	, 0x0069}, //MIC2 -> RECMIXR
+	{RT5616_ADC_DIG_VOL	, 0xdfdf}, //mute adc for pop noise
+/*MIC*/
 	{RT5616_STO1_ADC_MIXER	, 0x3802},
-	{RT5616_IN1_IN2		, 0x0100} //20db
-};
+	{RT5616_IN1_IN2		, 0x1220}, //20db
+
+/*spk difference output*/
+	{RT5616_LOUT_CTRL2, 0x8000}//differece output ken add
+		
+ };
 #define RT5616_INIT_REG_LEN ARRAY_SIZE(init_list)
 
 static struct snd_soc_codec *rt5616_codec;
+
+#define RK_SPK_CTRL
+
+#if defined(RK_SPK_CTRL)
+extern int Headset_status(void);
+extern int rk_set_spk(bool enable);
+#endif
+
+int codec_ALC_Enable(int on);
 
 static int rt5616_reg_init(struct snd_soc_codec *codec)
 {
@@ -396,7 +433,56 @@ int rt5616_headset_detect(struct snd_soc_codec *codec, int jack_insert)
 }
 EXPORT_SYMBOL(rt5616_headset_detect);
 */
+hweq_t hweq_param[] = {
+	{/* NORMAL */
+		{0},
+		{0},
+		0x0000,
+	},
+	{/* LOUT */
+		{0xa0,	  0xa1,	0xa2,	0xa3,	0xa4,	 0xa5,	0xa6,	 0xa7,	 0xa8,	0xa9,	 0xaa,	0xab,	0xac,	0xad,	0xae,	0xaf,	 0xb3,	0xb4}, 
+		{0x180C,  0xF405,	0xC23D,	0x1DC9,	0xF65F,	0xC4DF,	0x1BBC,	0x0F8F,	0xEF01, 0x1bbc,	0x0000,  0xe241,	0x1180,	0x0556,	0x0be8,	0xf65f,	 0x00cc, 0x5000}, //20131213
+		0x0007,
+	},
+	{/* HP */
+		{0xa0,	0xa1,	0xa2,	0xa3,	0xa4,	0xa5,	0xa6,	0xa7,	0xa8,	0xa9,	0xaa,	0xab,	0xac,	0xad,	0xae,	0xaf,	0xb3,	0xb4}, 
+		{0x1c10,0x01f4,	0xc5e9,	0x1a98,	0x1d2c,	0xc882,	0x1c10,	0x01f4,	0xe904,	0x1c10,	0x01f4, 0xe904,	0x1c10,	0x01f4,	0x1c10,	0x01f4,	 0x0202, 0x1fd9}, 
+		0x0000,
+	},
+};
+#define RT5616_HWEQ_LEN ARRAY_SIZE(hweq_param)
 
+int rt5616_update_eqmode(struct snd_soc_codec *codec, int mode)
+{
+	int i;
+	static int eq_mode=-1;
+#if 0	
+if(codec == NULL ||  mode >= RT5616_HWEQ_LEN)
+		return -EINVAL;
+
+	dev_dbg(codec->dev, "%s(): mode=%d\n", __func__, mode);
+
+	if(eq_mode != NORMAL) //bard 4-7
+		snd_soc_update_bits(codec, RT5616_PWR_DIG1, RT5616_PWR_DAC_L1|RT5616_PWR_DAC_R1,RT5616_PWR_DAC_L1|RT5616_PWR_DAC_R1);
+	
+	if(mode == eq_mode)
+		return 0;
+	for(i = 0; i <= EQ_REG_NUM; i++) {
+		if(hweq_param[mode].reg[i])
+				rt5616_index_write(codec,hweq_param[mode].reg[i], hweq_param[mode].value[i]);
+		else
+			break;
+	}
+	snd_soc_update_bits(codec, RT5616_EQ_CTRL2, RT5616_EQ_CTRL_MASK,
+					hweq_param[mode].ctrl);
+	snd_soc_update_bits(codec, RT5616_EQ_CTRL1,
+		RT5616_EQ_UPD, RT5616_EQ_UPD);
+	snd_soc_update_bits(codec, RT5616_EQ_CTRL1, RT5616_EQ_UPD, 0);
+
+	eq_mode = mode;
+#endif
+	return 0;
+}
 static const DECLARE_TLV_DB_SCALE(out_vol_tlv, -4650, 150, 0);
 static const DECLARE_TLV_DB_SCALE(dac_vol_tlv, -65625, 375, 0);
 static const DECLARE_TLV_DB_SCALE(in_vol_tlv, -3450, 150, 0);
@@ -458,8 +544,107 @@ static int rt5616_vol_rescale_put(struct snd_kcontrol *kcontrol,
 			RT5616_R_VOL_MASK, val << mc->shift | val2);
 }
 
+#ifdef PLAYBACK_PATH_CONTROL
+enum {
+	OFF,
+	RCV,
+	SPK_PATH,
+	HP_PATH,
+	HP_NO_MIC,
+	BT,
+	SPK_HP,
+	RING_SPK,
+	RING_HP,
+	RING_HP_NO_MIC,
+	RING_SPK_HP,
+};
+
+long int playback_path = OFF;
+
+//For tiny alsa playback
+static const char *rt5616_playback_path_mode[] = {"OFF", "RCV", "SPK", "HP", "HP_NO_MIC", "BT", "SPK_HP", //0-6
+		"RING_SPK", "RING_HP", "RING_HP_NO_MIC", "RING_SPK_HP"};//7-10
+
+static const SOC_ENUM_SINGLE_DECL(rt5616_playback_path_type, 0, 0, rt5616_playback_path_mode);
+
+static int rt5616_playback_path_get(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+
+	printk("%s : playback_path %ld\n", __func__, playback_path);
+
+	ucontrol->value.integer.value[0] = playback_path;
+
+	return 0;
+}
+
+static int rt5616_playback_path_put(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	long int pre_path;
+
+
+	if (playback_path == ucontrol->value.integer.value[0]){
+		printk("%s : playback_path is not changed!\n",__func__);
+		return 0;
+	}
+
+	pre_path = playback_path;
+	playback_path = ucontrol->value.integer.value[0];
+
+	printk("%s : set playback_path %ld, pre_path %ld\n", __func__,
+		playback_path, pre_path);
+
+	switch (playback_path) {
+	case OFF:
+		snd_soc_update_bits(codec, RT5616_HP_VOL,
+			RT5616_L_MUTE | RT5616_R_MUTE,
+			RT5616_L_MUTE | RT5616_R_MUTE);
+
+		if (SPK_CON_GPIO != INVALID_GPIO)
+			gpio_set_value(SPK_CON_GPIO, GPIO_LOW);
+		break;
+	case RCV:
+	case SPK_PATH:
+	case RING_SPK:
+		snd_soc_update_bits(codec, RT5616_HP_VOL,
+			RT5616_L_MUTE | RT5616_R_MUTE,
+			RT5616_L_MUTE | RT5616_R_MUTE);
+		if (SPK_CON_GPIO != INVALID_GPIO)
+			gpio_set_value(SPK_CON_GPIO, GPIO_HIGH);
+		break;
+	case HP_PATH:
+	case HP_NO_MIC:
+	case RING_HP:
+	case RING_HP_NO_MIC:
+		snd_soc_update_bits(codec, RT5616_HP_VOL,
+			RT5616_L_MUTE | RT5616_R_MUTE, 0);
+		if (SPK_CON_GPIO != INVALID_GPIO)
+			gpio_set_value(SPK_CON_GPIO, GPIO_LOW);
+		break;
+	case BT:
+		break;
+	case SPK_HP:
+	case RING_SPK_HP:
+		snd_soc_update_bits(codec, RT5616_HP_VOL,
+			RT5616_L_MUTE | RT5616_R_MUTE, 0);
+		if (SPK_CON_GPIO != INVALID_GPIO)
+			gpio_set_value(SPK_CON_GPIO, GPIO_HIGH);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+#endif
 
 static const struct snd_kcontrol_new rt5616_snd_controls[] = {
+#ifdef PLAYBACK_PATH_CONTROL
+	SOC_ENUM_EXT("Playback Path", rt5616_playback_path_type,
+		rt5616_playback_path_get, rt5616_playback_path_put),
+#endif
 	/* Headphone Output Volume */
 	SOC_DOUBLE("HP Playback Switch", RT5616_HP_VOL,
 		RT5616_L_MUTE_SFT, RT5616_R_MUTE_SFT, 1, 1),
@@ -661,8 +846,8 @@ void hp_amp_power(struct snd_soc_codec *codec, int on)
 				RT5616_PWR_HV_L | RT5616_PWR_HV_R,
 				RT5616_PWR_HV_L | RT5616_PWR_HV_R);
 			snd_soc_update_bits(codec, RT5616_PWR_ANLG1,
-				RT5616_PWR_HP_L | RT5616_PWR_HP_R | RT5616_PWR_HA | RT5616_PWR_LM,
-				RT5616_PWR_HP_L | RT5616_PWR_HP_R | RT5616_PWR_HA | RT5616_PWR_LM);
+				RT5616_PWR_HP_L | RT5616_PWR_HP_R | RT5616_PWR_HA,
+				RT5616_PWR_HP_L | RT5616_PWR_HP_R | RT5616_PWR_HA);
 			msleep(50);
 			snd_soc_update_bits(codec, RT5616_PWR_ANLG1,
 				RT5616_PWR_FV1 | RT5616_PWR_FV2,
@@ -693,7 +878,7 @@ void hp_amp_power(struct snd_soc_codec *codec, int on)
 				RT5616_HP_CO_DIS | RT5616_HP_CP_PD |
 				RT5616_HP_SG_EN | RT5616_HP_CB_PD);
 			snd_soc_update_bits(codec, RT5616_PWR_ANLG1,
-				RT5616_PWR_HP_L | RT5616_PWR_HP_R | RT5616_PWR_HA | RT5616_PWR_LM,
+				RT5616_PWR_HP_L | RT5616_PWR_HP_R | RT5616_PWR_HA,
 				0);
 		}
 	}
@@ -778,6 +963,32 @@ static int rt5616_hp_event(struct snd_soc_dapm_widget *w,
 	return 0;
 }
 
+extern int Headset_status(void);
+
+static int rt5616_dac_event(struct snd_soc_dapm_widget *w,
+	struct snd_kcontrol *kcontrol, int event)
+{
+	struct snd_soc_codec *codec = w->codec;
+
+	switch (event) {
+	case SND_SOC_DAPM_POST_PMU:
+		if(Headset_status()==0)//0 :spk  
+		{
+			rt5616_update_eqmode(codec, 0);
+			rt5616_update_eqmode(codec, 1);
+		}
+		break;
+
+	case SND_SOC_DAPM_PRE_PMD:
+		rt5616_update_eqmode(codec, 0);
+		break;
+
+	default:
+		return 0;
+	}
+
+	return 0;
+}
 static int rt5616_lout_event(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *kcontrol, int event)
 {
@@ -786,6 +997,8 @@ static int rt5616_lout_event(struct snd_soc_dapm_widget *w,
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
 		hp_amp_power(codec,1);
+		snd_soc_update_bits(codec, RT5616_PWR_ANLG1,
+			RT5616_PWR_LM, RT5616_PWR_LM);
 		snd_soc_update_bits(codec, RT5616_LOUT_CTRL1,
 			RT5616_L_MUTE | RT5616_R_MUTE, 0);
 		break;
@@ -794,6 +1007,8 @@ static int rt5616_lout_event(struct snd_soc_dapm_widget *w,
 		snd_soc_update_bits(codec, RT5616_LOUT_CTRL1,
 			RT5616_L_MUTE | RT5616_R_MUTE,
 			RT5616_L_MUTE | RT5616_R_MUTE);
+                snd_soc_update_bits(codec, RT5616_PWR_ANLG1,
+                       RT5616_PWR_LM, 0);
 		hp_amp_power(codec,0);
 		break;
 
@@ -945,10 +1160,12 @@ static const struct snd_soc_dapm_widget rt5616_dapm_widgets[] = {
 		rt5616_sto_dac_r_mix, ARRAY_SIZE(rt5616_sto_dac_r_mix)),
 
 	/* DACs */
-	SND_SOC_DAPM_DAC("DAC L1", NULL, RT5616_PWR_DIG1,
-			RT5616_PWR_DAC_L1_BIT, 0),
-	SND_SOC_DAPM_DAC("DAC R1", NULL, RT5616_PWR_DIG1,
-			RT5616_PWR_DAC_R1_BIT, 0),
+	SND_SOC_DAPM_DAC_E("DAC L1", NULL, RT5616_PWR_DIG1,
+			RT5616_PWR_DAC_L1_BIT, 0, rt5616_dac_event, 
+			SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMU),
+	SND_SOC_DAPM_DAC_E("DAC R1", NULL, RT5616_PWR_DIG1,
+			RT5616_PWR_DAC_R1_BIT, 0, rt5616_dac_event, 
+			SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMU),
 	/* OUT Mixer */
 	SND_SOC_DAPM_MIXER("OUT MIXL", RT5616_PWR_MIXER, RT5616_PWR_OM_L_BIT,
 		0, rt5616_out_l_mix, ARRAY_SIZE(rt5616_out_l_mix)),
@@ -980,7 +1197,7 @@ static const struct snd_soc_dapm_widget rt5616_dapm_widgets[] = {
 	/* HPO/LOUT/Mono Mixer */
 	SND_SOC_DAPM_MIXER("HPO MIX", SND_SOC_NOPM, 0, 0,
 		rt5616_hpo_mix, ARRAY_SIZE(rt5616_hpo_mix)),
-	SND_SOC_DAPM_MIXER("LOUT MIX", RT5616_PWR_ANLG1, RT5616_PWR_LM_BIT, 0,
+	SND_SOC_DAPM_MIXER("LOUT MIX", SND_SOC_NOPM, 0, 0,
 		rt5616_lout_mix, ARRAY_SIZE(rt5616_lout_mix)),
 
 	SND_SOC_DAPM_PGA_S("HP amp", 1, SND_SOC_NOPM, 0, 0,
@@ -1502,6 +1719,37 @@ void codec_set_spk(bool on)
 	snd_soc_dapm_sync(&codec->dapm);
 	mutex_unlock(&codec->mutex);
 }
+
+int codec_change_mic(int on)
+{
+	if (on)
+	{
+		
+		snd_soc_write(rt5616_codec,RT5616_REC_L2_MIXER,0x006d); //mic1 hp
+		snd_soc_write(rt5616_codec,RT5616_REC_R2_MIXER,0x006d);
+	} 
+	else 
+	{
+		snd_soc_write(rt5616_codec,RT5616_REC_L2_MIXER,0x006b); //mic2
+		snd_soc_write(rt5616_codec,RT5616_REC_R2_MIXER,0x006b);
+	}
+	return on;
+}
+EXPORT_SYMBOL(codec_change_mic);
+int codec_set_micbias(int on)
+{
+	printk("hepeng codec_set_micbias (%d)\n",on);
+	if (1 == on){
+		snd_soc_update_bits(rt5616_codec,RT5616_PWR_ANLG2,
+				RT5616_PWR_MB1, RT5616_PWR_MB1);
+	} else {
+		snd_soc_update_bits(rt5616_codec,RT5616_PWR_ANLG2,
+				RT5616_PWR_MB1, 0);
+	}
+	return on;
+}
+EXPORT_SYMBOL(codec_set_micbias);
+
 static int rt5616_probe(struct snd_soc_codec *codec)
 {
 	struct rt5616_priv *rt5616 = snd_soc_codec_get_drvdata(codec);
@@ -1525,6 +1773,7 @@ static int rt5616_probe(struct snd_soc_codec *codec)
 		RT5616_PWR_FV1 | RT5616_PWR_FV2);
 
 	rt5616_reg_init(codec);
+	
 	snd_soc_update_bits(codec, RT5616_PWR_ANLG1,
 		RT5616_PWR_LDO_DVO_MASK, RT5616_PWR_LDO_DVO_1_2V);
 
@@ -1541,14 +1790,45 @@ static int rt5616_probe(struct snd_soc_codec *codec)
 			ARRAY_SIZE(rt5616_dapm_routes));
 
 	ret = device_create_file(codec->dev, &dev_attr_index_reg);
+
+	codec_ALC_Enable(1);
+
 	if (ret != 0) {
 		dev_err(codec->dev,
 			"Failed to create index_reg sysfs files: %d\n", ret);
 		return ret;
 	}
+#ifdef PLAYBACK_PATH_CONTROL
+	if (SPK_CON_GPIO != INVALID_GPIO) {
+		gpio_request(SPK_CON_GPIO, NULL);
+		gpio_direction_output(SPK_CON_GPIO, GPIO_LOW);
+	}
+#endif
 
 	return 0;
 }
+
+int codec_ALC_Enable(int on)
+{
+
+	if (on)
+	{
+		
+		snd_soc_write(rt5616_codec,RT5616_ALC_1,0x6206); //if spk out enable
+		snd_soc_write(rt5616_codec,RT5616_ALC_2,0x1f06);  // 9 db
+		snd_soc_write(rt5616_codec,RT5616_ALC_3,0x0000); 
+	       rt5616_update_eqmode(rt5616_codec, 1);
+	
+	} 
+	else 
+	{
+		snd_soc_write(rt5616_codec,RT5616_ALC_1,0x2206); //if hp in disable
+	      rt5616_update_eqmode(rt5616_codec, 0);
+		
+	}
+	return on;
+}
+EXPORT_SYMBOL(codec_ALC_Enable);
 
 static int rt5616_remove(struct snd_soc_codec *codec)
 {
@@ -1559,13 +1839,29 @@ static int rt5616_remove(struct snd_soc_codec *codec)
 #ifdef CONFIG_PM
 static int rt5616_suspend(struct snd_soc_codec *codec, pm_message_t state)
 {
+	rt5616_update_eqmode(rt5616_codec, 0);
+
 	rt5616_set_bias_level(codec, SND_SOC_BIAS_OFF);
+#if defined(RK_SPK_CTRL)
+	if(Headset_status()==0)//headset out
+	{
+		rk_set_spk( 0);
+	}
+#endif
+	printk("%s\n",__FUNCTION__);
 	return 0;
 }
 
 static int rt5616_resume(struct snd_soc_codec *codec)
 {
 	rt5616_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
+#if defined(RK_SPK_CTRL)
+	if(Headset_status()==0)//headset out
+	{
+		rk_set_spk(1);
+	}
+#endif
+	printk("%s\n",__FUNCTION__);
 	return 0;
 }
 #else
