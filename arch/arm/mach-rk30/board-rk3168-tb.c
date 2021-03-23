@@ -509,15 +509,102 @@ static struct sensor_platform_data cm3217_info = {
 
 #ifdef CONFIG_FB_ROCKCHIP
 
-#define LCD_CS_PIN         INVALID_GPIO
+#if defined (CONFIG_TC358768_RGB2MIPI)
+#include "../../../drivers/video/rockchip/transmitter/mipi_dsi.h"
+
+struct tc358768_t tc358768_platform_data = {
+	.id = 0x4401,
+	.reset = {
+		.reset_pin = RK30_PIN0_PA3,   //RESET PIN
+		.effect_value = GPIO_LOW,
+	},
+	.vddio = {                       //POWER ON
+		.enable_pin = RK30_PIN0_PB0,
+		.effect_value = GPIO_LOW,
+	},
+	.vdd_mipi = {                     //MVDD
+		.enable_pin = RK30_PIN0_PC2,
+		.effect_value = GPIO_HIGH,
+	},	
+	.vddc = {                     //SHUT PIN
+		.enable_pin = INVALID_GPIO,
+	},
+};
+
+/*****************************************************************************************
+ * lcd  devices
+ * author: hhb@rock-chips.com
+ *****************************************************************************************/
+
+#define MIPI_LCD_RST_PIN				RK30_PIN1_PA5
+#define MIPI_LCD_EN_PIN					RK30_PIN0_PC2
+
+static struct rk29lcd_info rk29_lcd_info = {
+    .reset_pin = MIPI_LCD_RST_PIN,
+    .cs_pin=MIPI_LCD_EN_PIN,
+};
+
+#if defined(CONFIG_LCDC0_RK3066B) || defined(CONFIG_LCDC0_RK3188)
+struct rk29fb_info lcdc0_screen_info = {
+#if defined(CONFIG_RK_HDMI) && defined(CONFIG_HDMI_SOURCE_LCDC0) && defined(CONFIG_DUAL_LCDC_DUAL_DISP_IN_KERNEL)
+	.prop	   = EXTEND,	//extend display device
+	.io_init    = NULL,
+	.io_disable = NULL,
+	.io_enable = NULL,
+	.set_screen_info = hdmi_init_lcdc,
+#else
+	.prop	   = PRMRY,		//primary display device
+	.lcd_info = &rk29_lcd_info,
+	.set_screen_info = set_lcd_info,
+#endif
+};
+#endif
+
+#if defined(CONFIG_LCDC1_RK3066B) || defined(CONFIG_LCDC1_RK3188)
+struct rk29fb_info lcdc1_screen_info = {
+#if defined(CONFIG_RK_HDMI) && defined(CONFIG_HDMI_SOURCE_LCDC1) && defined(CONFIG_DUAL_LCDC_DUAL_DISP_IN_KERNEL)
+	.prop	   = EXTEND,	//extend display device
+	.io_init    = NULL,
+	.io_disable = NULL,
+	.io_enable = NULL,
+	.set_screen_info = hdmi_init_lcdc,
+#else
+	.prop	   = PRMRY,		//primary display device
+	.lcd_info = &rk29_lcd_info,
+	.set_screen_info = set_lcd_info,
+#endif
+};
+#endif
+
+#else
+
+#define LCD_CS_PIN         RK30_PIN0_PC2
 #define LCD_CS_VALUE       GPIO_HIGH
 
 #define LCD_EN_PIN         RK30_PIN0_PB0
-#define LCD_EN_VALUE       GPIO_HIGH
+#define LCD_EN_VALUE       GPIO_LOW
+
+#define LCD_STANDBY_PIN         INVALID_GPIO
+#define LCD_STANDBY_VALUE       GPIO_HIGH
 
 static int rk_fb_io_init(struct rk29_fb_setting_info *fb_setting)
 {
 	int ret = 0;
+
+	if(LCD_STANDBY_PIN !=INVALID_GPIO)
+	{
+		ret = gpio_request(LCD_STANDBY_PIN, NULL);
+		if (ret != 0)
+		{
+			gpio_free(LCD_STANDBY_PIN);
+			printk(KERN_ERR "request lcd cs pin fail!\n");
+			return -1;
+		}
+		else
+		{
+			gpio_direction_output(LCD_STANDBY_PIN, LCD_STANDBY_VALUE);
+		}
+	}
 
 	if(LCD_CS_PIN !=INVALID_GPIO)
 	{
@@ -560,10 +647,18 @@ static int rk_fb_io_disable(void)
 	{
 		gpio_set_value(LCD_EN_PIN, !LCD_EN_VALUE);
 	}
+	if(LCD_STANDBY_PIN !=INVALID_GPIO)
+	{
+		gpio_set_value(LCD_STANDBY_PIN, !LCD_STANDBY_VALUE);
+	}
 	return 0;
 }
 static int rk_fb_io_enable(void)
 {
+	if(LCD_STANDBY_PIN !=INVALID_GPIO)
+	{
+		gpio_set_value(LCD_STANDBY_PIN, LCD_STANDBY_VALUE);
+	}
 	if(LCD_CS_PIN !=INVALID_GPIO)
 	{
 		gpio_set_value(LCD_CS_PIN, LCD_CS_VALUE);
@@ -610,6 +705,9 @@ struct rk29fb_info lcdc1_screen_info = {
 #endif
 };
 #endif
+
+#endif
+
 
 static struct resource resource_fb[] = {
 	[0] = {
@@ -2500,6 +2598,14 @@ void  rk30_pwm_resume_voltage_set(void)
 
 #ifdef CONFIG_I2C2_RK30
 static struct i2c_board_info __initdata i2c2_info[] = {
+#if defined(CONFIG_TC358768_RGB2MIPI)
+ 	{
+ 		.type		= "tc358768",
+ 		.addr		= 0x0e,
+ 		.flags		= 0,
+ 		.platform_data 	= &tc358768_platform_data,
+ 	},
+#endif
 #if defined (CONFIG_TOUCHSCREEN_GT8XX)
 	{
 		.type          = "Goodix-TS",
