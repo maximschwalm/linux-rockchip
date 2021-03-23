@@ -2509,6 +2509,12 @@ static struct i2c_board_info __initdata i2c2_info[] = {
 		.platform_data = &goodix_info,
 	},
 #endif
+#if defined (CONFIG_TOUCHSCREEN_GT9XX)
+    {
+        .type           = "Goodix-TS",
+        .addr           = 0x14,
+    },
+#endif
 #if defined (CONFIG_LS_CM3217)
 	{
 		.type          = "lightsensor",
