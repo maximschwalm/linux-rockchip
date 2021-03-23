@@ -376,6 +376,8 @@ config POWER_RT5025
 	default n
 	help
 	  Enable RT5025 Power/Gauge part driver.
+	
+source  "drivers/power/axp_power/Kconfig"
 
 config RT5025_SUPPORT_ACUSB_DUALIN
 	bool "RT5025 AC/USB Dualin Option"
