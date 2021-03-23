@@ -33,6 +33,7 @@
 #elif defined(CONFIG_SOC_RK3168) || defined(CONFIG_SOC_RK3188) || defined(CONFIG_SOC_RK3168M)
 #define RK3066B_HOST_DRV_VBUS RK30_PIN0_PC0
 #define RK3066B_OTG_DRV_VBUS  RK30_PIN3_PD5
+#define RK3066B_OTG_DRV_NVBUS RK30_PIN0_PA1
 #elif defined(CONFIG_SOC_RK3028)
 #define RK3066B_HOST_DRV_VBUS RK30_PIN1_PA4
 #define RK3066B_OTG_DRV_VBUS  RK30_PIN3_PD7
@@ -134,6 +135,8 @@ void usb20otg_hw_init(void)
         //GPIO init
         gpio_request(RK3066B_OTG_DRV_VBUS, NULL);
         gpio_direction_output(RK3066B_OTG_DRV_VBUS, GPIO_LOW);
+        gpio_request(RK3066B_OTG_DRV_NVBUS, NULL);
+        gpio_direction_output(RK3066B_OTG_DRV_NVBUS, GPIO_LOW);
 #else
         rk30_mux_api_set(GPIO0A5_OTGDRVVBUS_NAME, GPIO0A_OTG_DRV_VBUS);
 #endif
@@ -267,11 +270,13 @@ void usb20otg_power_enable(int enable)
     if(0 == enable)//disable
     {
         gpio_set_value(RK3066B_OTG_DRV_VBUS, GPIO_LOW); 
+        gpio_set_value(RK3066B_OTG_DRV_NVBUS, GPIO_LOW); 
 
     }
     if(1 == enable)//enable
     {
         gpio_set_value(RK3066B_OTG_DRV_VBUS, GPIO_HIGH); 
+        gpio_set_value(RK3066B_OTG_DRV_NVBUS, GPIO_HIGH); 
     }   
 }
 #endif
@@ -320,6 +325,7 @@ static struct resource usb20_host_resource[] = {
 };
 void usb20host_hw_init(void)
 {
+#if 0
     // usb phy config init
 
     // other haredware init
@@ -328,6 +334,7 @@ void usb20host_hw_init(void)
     gpio_direction_output(RK3066B_HOST_DRV_VBUS, GPIO_HIGH);
 #else
     rk30_mux_api_set(GPIO0A6_HOSTDRVVBUS_NAME, GPIO0A_HOST_DRV_VBUS);
+#endif
 #endif
 }
 void usb20host_phy_suspend(void* pdata, int suspend)
