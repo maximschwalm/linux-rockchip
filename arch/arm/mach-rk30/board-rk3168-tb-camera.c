@@ -36,14 +36,14 @@ Comprehensive camera device registration:
 static struct rkcamera_platform_data new_camera[] = { 
     new_camera_device(RK29_CAM_SENSOR_OV5640,
                         back,
-                        RK30_PIN3_PB5,
-                        0,
-                        0,
-                        4,
-                        0),
-    new_camera_device(RK29_CAM_SENSOR_OV2659,
-                        front,
                         RK30_PIN3_PB4,
+                        0,
+                        0,
+                        3,
+                        0),
+    new_camera_device(RK29_CAM_SENSOR_SP2518,
+                        front,
+                      RK30_PIN3_PB5,
                         0,
                         0,
                         3,
@@ -205,24 +205,34 @@ static struct rkcamera_platform_data new_camera[] = {
 
 static void rk_cif_power(struct rk29camera_gpio_res *res,int on)
 {
-	struct regulator *ldo_18,*ldo_28;
+	struct regulator *ldo_18,*ldo_28,*aldo_28,*af_ctrl_ldo;
 	int camera_power = res->gpio_power;
 	  int camera_ioflag = res->gpio_flag;
 	  int camera_io_init = res->gpio_init;
 	  
-	ldo_28 = regulator_get(NULL, "ldo7");	// vcc28_cif
-	ldo_18 = regulator_get(NULL, "ldo1");	// vcc18_cif
-	if (ldo_28 == NULL || IS_ERR(ldo_28) || ldo_18 == NULL || IS_ERR(ldo_18)){
+	aldo_28 = regulator_get(NULL, "axp22_ldoio0");	// axp22_ldoio0
+	ldo_28 = regulator_get(NULL, "vdd28_cif");	// vdd28_cif
+	ldo_18 = regulator_get(NULL, "vcc18_cif");	// vcc18_cif
+	if (aldo_28 == NULL || IS_ERR(aldo_28) || ldo_28 == NULL || IS_ERR(ldo_28) || ldo_18 == NULL || IS_ERR(ldo_18)){
 		printk("get cif ldo failed!\n");
 		return;
 		}
 	if(on == 0){
-		while(regulator_is_enabled(ldo_28)>0)	
-			regulator_disable(ldo_28);
-		regulator_put(ldo_28);
-		while(regulator_is_enabled(ldo_18)>0)
-			regulator_disable(ldo_18);
-		regulator_put(ldo_18);
+		if(regulator_is_enabled(ldo_28)>0)	
+		{
+		  if (!regulator_disable(ldo_28))
+		    regulator_put(ldo_28);
+		}
+		if(regulator_is_enabled(aldo_28)>0)	
+		{
+		  if (!regulator_disable(aldo_28))
+		    regulator_put(aldo_28);
+		}
+		if(regulator_is_enabled(ldo_18)>0)
+		{
+		  if (!regulator_disable(ldo_18))
+		    regulator_put(ldo_18);
+		}
 		mdelay(10);
 	if (camera_power != INVALID_GPIO)  {
 		  if (camera_io_init & RK29_CAM_POWERACTIVE_MASK) {
@@ -232,16 +242,28 @@ static void rk_cif_power(struct rk29camera_gpio_res *res,int on)
 		}
 		}
 	else{
-		regulator_set_voltage(ldo_28, 2800000, 2800000);
-		regulator_enable(ldo_28);
-   //	printk("%s set ldo7 vcc28_cif=%dmV end\n", __func__, regulator_get_voltage(ldo_28));
-		regulator_put(ldo_28);
+		if(regulator_is_enabled(ldo_18)<=0)
+		{	
+      regulator_set_voltage(ldo_18, 1800000, 1800000);
+		  if (!regulator_enable(ldo_18))
+		    regulator_put(ldo_18);
+	  }
+		mdelay(10);
+		if(regulator_is_enabled(ldo_28)<=0)
+		{	
+      regulator_set_voltage(ldo_28, 1800000, 1800000);
+		  if (!regulator_enable(ldo_28))
+		    regulator_put(ldo_28);
+    }
+		if(regulator_is_enabled(aldo_28)<=0)
+		{	
+      regulator_set_voltage(aldo_28, 2800000, 2800000);
+		  if (!regulator_enable(aldo_28))
+		    regulator_put(aldo_28);
+    }
 
-		regulator_set_voltage(ldo_18, 1800000, 1800000);
-	//	regulator_set_suspend_voltage(ldo, 1800000);
-		regulator_enable(ldo_18);
-	//	printk("%s set ldo1 vcc18_cif=%dmV end\n", __func__, regulator_get_voltage(ldo_18));
-		regulator_put(ldo_18);
+		mdelay(10);
+
 	if (camera_power != INVALID_GPIO)  {
 		  if (camera_io_init & RK29_CAM_POWERACTIVE_MASK) {
 			gpio_set_value(camera_power, ((camera_ioflag&RK29_CAM_POWERACTIVE_MASK)>>RK29_CAM_POWERACTIVE_BITPOS));

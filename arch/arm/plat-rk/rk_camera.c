@@ -1822,9 +1822,9 @@ int rk_sensor_register(void)
         
         if (new_camera[i].orientation == INVALID_VALUE) {
             if (strstr(new_camera[i].dev_name,"back")) {
-                new_camera[i].orientation = 90;
-            } else {
                 new_camera[i].orientation = 270;
+            } else {
+                new_camera[i].orientation = 90;
             }
         }
         /* ddl@rock-chips.com: v0.1.3 */
