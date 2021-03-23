@@ -525,6 +525,9 @@ static int fb_show_logo_line(struct fb_info *info, int rotate,
 			fb_rotate_logo(info, logo_rotate, &image, rotate);
 	}
 
+        image.dx = (info->var.xres - logo->width) / 2;
+        image.dy = (info->var.yres - logo->height) / 2;
+
 	fb_do_show_logo(info, &image, rotate, n);
 
 	kfree(palette);
