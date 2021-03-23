@@ -1890,6 +1890,17 @@ int dwc_vbus_status( void )
 }
 EXPORT_SYMBOL(dwc_vbus_status);
 
+// fky_debug : add
+int  dwc_connect_status(void)
+{
+    dwc_otg_pcd_t *pcd = s_pcd ;
+    if(!pcd)
+        return 0;
+    else
+        return pcd->conn_status ;
+}
+EXPORT_SYMBOL(dwc_connect_status);
+
 int dwc_otg_set_phy_status(uint8_t status)
 {
     dwc_otg_pcd_t *pcd = s_pcd;
