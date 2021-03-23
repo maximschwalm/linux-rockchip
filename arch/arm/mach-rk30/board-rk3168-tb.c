@@ -1418,16 +1418,16 @@ static struct rfkill_rk_platform_data rfkill_rk_platdata = {
         .enable         = GPIO_HIGH,
         .iomux          = {
             .name       = "bt_poweron",
-            .fgpio      = GPIO3_C7,
+            .fgpio      = GPIO1_B6,
         },
     },
 
     .reset_gpio         = { // BT_RST
-        .io             = RK30_PIN3_PC7, // set io to INVALID_GPIO for disable it
+        .io             = RK30_PIN3_PD1, // set io to INVALID_GPIO for disable it
         .enable         = GPIO_LOW,
         .iomux          = {
             .name       = "bt_reset",
-            .fgpio      = GPIO3_C7,
+            .fgpio      = GPIO3_D1,
        },
    }, 
 
@@ -1442,10 +1442,11 @@ static struct rfkill_rk_platform_data rfkill_rk_platdata = {
 
     .wake_host_irq      = { // BT_HOST_WAKE, for bt wakeup host when it is in deep sleep
         .gpio           = {
-            .io         = RK30_PIN0_PA5, // set io to INVALID_GPIO for disable it
+            .io         = RK30_PIN3_PC7, // set io to INVALID_GPIO for disable it
             .enable     = GPIO_LOW,      // set GPIO_LOW for falling, set 0 for rising
             .iomux      = {
-                .name   = NULL,
+                .name   = "bt_host_wake",
+                .fgpio  = GPIO3_C7,
             },
         },
     },
