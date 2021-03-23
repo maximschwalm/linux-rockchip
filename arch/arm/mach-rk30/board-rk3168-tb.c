@@ -1476,21 +1476,21 @@ int rk_gps_io_init(void)
 {
 	printk("%s \n", __FUNCTION__);
 	
-	gpio_request(RK30_PIN1_PB5, NULL);
-	gpio_direction_output(RK30_PIN1_PB5, GPIO_LOW);
+	gpio_request(RK30_PIN0_PD4, NULL);
+	gpio_direction_output(RK30_PIN0_PD4, GPIO_LOW);
 
 	iomux_set(GPS_RFCLK);//GPS_CLK
 	iomux_set(GPS_MAG);//GPS_MAG
 	iomux_set(GPS_SIG);//GPS_SIGN
 
-	gpio_request(RK30_PIN1_PA6, NULL);
-	gpio_direction_output(RK30_PIN1_PA6, GPIO_LOW);
+	gpio_request(RK30_PIN0_PD6, NULL);
+	gpio_direction_output(RK30_PIN0_PD6, GPIO_LOW);
 
-	gpio_request(RK30_PIN1_PA5, NULL);
-	gpio_direction_output(RK30_PIN1_PA5, GPIO_LOW);	
+	gpio_request(RK30_PIN0_PD5, NULL);
+	gpio_direction_output(RK30_PIN0_PD5, GPIO_LOW);	
 
-	gpio_request(RK30_PIN1_PA7, NULL);
-	gpio_direction_output(RK30_PIN1_PA7, GPIO_LOW);		
+	gpio_request(RK30_PIN0_PD7, NULL);
+	gpio_direction_output(RK30_PIN0_PD7, GPIO_LOW);		
 	return 0;
 }
 int rk_gps_power_up(void)
@@ -1549,10 +1549,10 @@ struct rk_gps_data rk_gps_info = {
 	.GpsSign = RK30_PIN1_PB3,
 	.GpsMag = RK30_PIN1_PB2,        //GPIO index
 	.GpsClk = RK30_PIN1_PB4,        //GPIO index
-	.GpsVCCEn = RK30_PIN1_PB5,     //GPIO index
-	.GpsSpi_CSO = RK30_PIN1_PA4,    //GPIO index
-	.GpsSpiClk = RK30_PIN1_PA5,     //GPIO index
-	.GpsSpiMOSI = RK30_PIN1_PA7,	  //GPIO index
+	.GpsVCCEn = RK30_PIN0_PD4,     //GPIO index
+	.GpsSpi_CSO = RK30_PIN0_PD7,    //GPIO index
+	.GpsSpiClk = RK30_PIN0_PD6,     //GPIO index
+	.GpsSpiMOSI = RK30_PIN0_PD5,	  //GPIO index
 	.GpsIrq = IRQ_GPS,
 	.GpsSpiEn = 0,
 	.GpsAdcCh = 2,
